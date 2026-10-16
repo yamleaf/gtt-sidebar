@@ -71,14 +71,14 @@ namespace gtt_sidebar.Core.Settings
             // Check label
             if (string.IsNullOrWhiteSpace(shortcut.Label))
             {
-                errorMessage = "Label cannot be empty.";
+                errorMessage = "名称不能为空。";
                 return false;
             }
 
             // Check path
             if (string.IsNullOrWhiteSpace(shortcut.Path))
             {
-                errorMessage = "Path cannot be empty.";
+                errorMessage = "路径不能为空。";
                 return false;
             }
 
@@ -89,7 +89,7 @@ namespace gtt_sidebar.Core.Settings
                     if (!shortcut.Path.StartsWith("http://") && !shortcut.Path.StartsWith("https://") &&
                         !shortcut.Path.StartsWith("ftp://") && !shortcut.Path.StartsWith("file://"))
                     {
-                        errorMessage = "URL must start with http://, https://, ftp://, or file://";
+                        errorMessage = "网址必须以 http://、https://、ftp:// 或 file:// 开头";
                         return false;
                     }
                     break;
@@ -100,7 +100,7 @@ namespace gtt_sidebar.Core.Settings
                     var executablePath = ExtractExecutablePath(shortcut.Path);
                     if (!File.Exists(executablePath))
                     {
-                        errorMessage = $"Executable not found: {executablePath}\n\nPlease check the path.";
+                        errorMessage = $"未找到可执行文件：{executablePath}\n\n请检查路径。";
                         return false;
                     }
                     break;
@@ -285,7 +285,7 @@ namespace gtt_sidebar.Core.Settings
                 var possiblePaths = new[]
                 {
                     Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Core", "Icons", "DefaultIcons", $"{iconName}.png"),
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "gtt-sidebar", "DefaultIcons", $"{iconName}.png"),
+                    Path.Combine(gtt_sidebar.Core.AppPaths.DefaultIconsPath, $"{iconName}.png"),
                     Path.Combine("Core", "Icons", "DefaultIcons", $"{iconName}.png"),
                     Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DefaultIcons", $"{iconName}.png")
                 };
@@ -353,7 +353,7 @@ namespace gtt_sidebar.Core.Settings
             var labelGrid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
             labelGrid.Children.Add(new TextBlock
             {
-                Text = "Label:",
+                Text = "名称：",
                 FontSize = 9,
                 Foreground = new SolidColorBrush(Color.FromRgb(102, 102, 102)),
                 HorizontalAlignment = HorizontalAlignment.Left
@@ -378,7 +378,7 @@ namespace gtt_sidebar.Core.Settings
             var pathGrid = new Grid();
             pathGrid.Children.Add(new TextBlock
             {
-                Text = "Path:",
+                Text = "路径：",
                 FontSize = 9,
                 Foreground = new SolidColorBrush(Color.FromRgb(102, 102, 102)),
                 HorizontalAlignment = HorizontalAlignment.Left
@@ -417,7 +417,7 @@ namespace gtt_sidebar.Core.Settings
                 Foreground = new SolidColorBrush(Colors.White),
                 BorderThickness = new Thickness(0),
                 Margin = new Thickness(0, 0, 2, 0),
-                ToolTip = "Move up",
+                ToolTip = "上移",
                 Tag = shortcut.Id
             };
             upButton.Click += MoveUp_Click;
@@ -433,7 +433,7 @@ namespace gtt_sidebar.Core.Settings
                 Foreground = new SolidColorBrush(Colors.White),
                 BorderThickness = new Thickness(0),
                 Margin = new Thickness(0, 0, 4, 0),
-                ToolTip = "Move down",
+                ToolTip = "下移",
                 Tag = shortcut.Id
             };
             downButton.Click += MoveDown_Click;
@@ -450,7 +450,7 @@ namespace gtt_sidebar.Core.Settings
                 BorderThickness = new Thickness(0),
                 Margin = new Thickness(0, 0, 4, 0),
                 IsEnabled = false,
-                ToolTip = "Save changes",
+                ToolTip = "保存修改",
                 Tag = shortcut.Id
             };
             saveButton.Click += SaveShortcut_Click;
@@ -466,7 +466,7 @@ namespace gtt_sidebar.Core.Settings
                 Background = new SolidColorBrush(Color.FromRgb(220, 53, 69)),
                 Foreground = new SolidColorBrush(Colors.White),
                 BorderThickness = new Thickness(0),
-                ToolTip = "Delete shortcut",
+                ToolTip = "删除快捷方式",
                 Tag = shortcut.Id
             };
             deleteButton.Click += DeleteShortcut_Click;
@@ -704,7 +704,7 @@ namespace gtt_sidebar.Core.Settings
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error in OnIconSelected: {ex.Message}");
-                MessageBox.Show($"Error updating icon: {ex.Message}", "Error",
+                MessageBox.Show($"更新图标失败：{ex.Message}", "错误",
                                MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
@@ -798,7 +798,7 @@ namespace gtt_sidebar.Core.Settings
 
                         if (!ValidateShortcutData(shortcut, out validationError))
                         {
-                            MessageBox.Show(validationError, "Validation Error",
+                            MessageBox.Show(validationError, "校验失败",
                                            MessageBoxButton.OK, MessageBoxImage.Warning);
                             return;
                         }
@@ -817,7 +817,7 @@ namespace gtt_sidebar.Core.Settings
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error saving shortcut: {ex.Message}");
-                MessageBox.Show($"Error saving shortcut: {ex.Message}", "Error",
+                MessageBox.Show($"保存快捷方式失败：{ex.Message}", "错误",
                                MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -836,8 +836,8 @@ namespace gtt_sidebar.Core.Settings
 
             // Confirmation dialog
             var result = MessageBox.Show(
-                $"Are you sure you want to delete the shortcut '{shortcut.Label}'?",
-                "Confirm Delete",
+                $"确定要删除快捷方式“{shortcut.Label}”吗？",
+                "确认删除",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -864,7 +864,7 @@ namespace gtt_sidebar.Core.Settings
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Error deleting shortcut: {ex.Message}");
-                    MessageBox.Show($"Error deleting shortcut: {ex.Message}", "Error",
+                    MessageBox.Show($"删除快捷方式失败：{ex.Message}", "错误",
                                    MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
@@ -878,7 +878,7 @@ namespace gtt_sidebar.Core.Settings
             try
             {
                 // Create a new shortcut with default values
-                var newShortcut = _shortcutsData.AddShortcut("New Shortcut", "calc", "builtin", "📁");
+                var newShortcut = _shortcutsData.AddShortcut("新建快捷方式", "calc", "builtin", "📁");
 
                 // Save to storage
                 SharedResourceManager.Instance.QueueSave("shortcuts", _shortcutsData);
@@ -900,7 +900,7 @@ namespace gtt_sidebar.Core.Settings
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error adding shortcut: {ex.Message}");
-                MessageBox.Show($"Error adding shortcut: {ex.Message}", "Error",
+                MessageBox.Show($"添加快捷方式失败：{ex.Message}", "错误",
                                MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -939,7 +939,12 @@ namespace gtt_sidebar.Core.Settings
                     Width = settings.Window.Width,
                     MarginTop = settings.Window.MarginTop,
                     MarginBottom = settings.Window.MarginBottom,
-                    MarginSide = settings.Window.MarginSide
+                    MarginSide = settings.Window.MarginSide,
+                    AutoHideOnFocusLost = settings.Window.AutoHideOnFocusLost,
+                    AutoHideDelayMs = settings.Window.AutoHideDelayMs,
+                    AutoHidePeekPx = settings.Window.AutoHidePeekPx,
+                    AutoHideEdgeTopRatio = settings.Window.AutoHideEdgeTopRatio,
+                    AutoHideEdgeBottomRatio = settings.Window.AutoHideEdgeBottomRatio
                 },
                 SystemMonitor = new SystemMonitorSettings
                 {
@@ -1020,7 +1025,73 @@ namespace gtt_sidebar.Core.Settings
             MarginSideSlider.Value = _currentSettings.Window.MarginSide;
             MarginSideValueText.Text = $"{_currentSettings.Window.MarginSide:F0} px";
 
+            // 自动隐藏设置
+            AutoHideCheckBox.IsChecked = _currentSettings.Window.AutoHideOnFocusLost;
+            AutoHideDelaySlider.Value = _currentSettings.Window.AutoHideDelayMs;
+            AutoHideDelayValueText.Text = $"{(int)_currentSettings.Window.AutoHideDelayMs} ms";
+
+            AutoHideEdgeTopSlider.Value = _currentSettings.Window.AutoHideEdgeTopRatio * 100;
+            AutoHideEdgeTopValueText.Text = $"{(int)(_currentSettings.Window.AutoHideEdgeTopRatio * 100)}%";
+
+            AutoHideEdgeBottomSlider.Value = _currentSettings.Window.AutoHideEdgeBottomRatio * 100;
+            AutoHideEdgeBottomValueText.Text = $"{(int)(_currentSettings.Window.AutoHideEdgeBottomRatio * 100)}%";
+
+            UpdateAutoHideControlsEnabled();
+
             LoadSystemMonitorSettingsToUI();
+        }
+
+        /// <summary>
+        /// 未启用自动隐藏时，相关滑块置灰
+        /// </summary>
+        private void UpdateAutoHideControlsEnabled()
+        {
+            var enabled = AutoHideCheckBox.IsChecked == true;
+            if (AutoHideDelaySlider != null) AutoHideDelaySlider.IsEnabled = enabled;
+            if (AutoHideEdgeTopSlider != null) AutoHideEdgeTopSlider.IsEnabled = enabled;
+            if (AutoHideEdgeBottomSlider != null) AutoHideEdgeBottomSlider.IsEnabled = enabled;
+        }
+
+        private void AutoHideCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            UpdateAutoHideControlsEnabled();
+        }
+
+        private void AutoHideDelaySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (AutoHideDelayValueText != null)
+            {
+                AutoHideDelayValueText.Text = $"{(int)e.NewValue} ms";
+            }
+        }
+
+        private void AutoHideEdgeTopSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (AutoHideEdgeTopValueText != null)
+            {
+                AutoHideEdgeTopValueText.Text = $"{(int)e.NewValue}%";
+            }
+
+            // 顶 + 底留白不能把感应区挤没（至少留 20%）
+            if (AutoHideEdgeBottomSlider != null &&
+                e.NewValue + AutoHideEdgeBottomSlider.Value > 80)
+            {
+                AutoHideEdgeBottomSlider.Value = Math.Max(0, 80 - e.NewValue);
+            }
+        }
+
+        private void AutoHideEdgeBottomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (AutoHideEdgeBottomValueText != null)
+            {
+                AutoHideEdgeBottomValueText.Text = $"{(int)e.NewValue}%";
+            }
+
+            if (AutoHideEdgeTopSlider != null &&
+                e.NewValue + AutoHideEdgeTopSlider.Value > 80)
+            {
+                AutoHideEdgeTopSlider.Value = Math.Max(0, 80 - e.NewValue);
+            }
         }
 
         private void LoadSystemMonitorSettingsToUI()
@@ -1067,6 +1138,12 @@ namespace gtt_sidebar.Core.Settings
             _currentSettings.Window.MarginTop = MarginTopSlider.Value;
             _currentSettings.Window.MarginBottom = MarginBottomSlider.Value;
             _currentSettings.Window.MarginSide = MarginSideSlider.Value;
+
+            // 自动隐藏
+            _currentSettings.Window.AutoHideOnFocusLost = AutoHideCheckBox.IsChecked == true;
+            _currentSettings.Window.AutoHideDelayMs = (int)AutoHideDelaySlider.Value;
+            _currentSettings.Window.AutoHideEdgeTopRatio = AutoHideEdgeTopSlider.Value / 100.0;
+            _currentSettings.Window.AutoHideEdgeBottomRatio = AutoHideEdgeBottomSlider.Value / 100.0;
 
             UpdateSystemMonitorSettings();
 
@@ -1148,7 +1225,7 @@ namespace gtt_sidebar.Core.Settings
             if (WidthSlider.Value < 100 || WidthSlider.Value > 200)
             {
                 hasErrors = true;
-                errorMessage = "Width must be between 100-200 pixels";
+                errorMessage = "宽度必须在 100-200 像素之间";
             }
 
             // Check margins
@@ -1157,7 +1234,7 @@ namespace gtt_sidebar.Core.Settings
                 MarginSideSlider.Value < 0 || MarginSideSlider.Value > 50)
             {
                 hasErrors = true;
-                errorMessage = "Margins must be between 0-50 pixels";
+                errorMessage = "边距必须在 0-50 像素之间";
             }
 
             if (hasErrors)
@@ -1180,7 +1257,7 @@ namespace gtt_sidebar.Core.Settings
             // Validate settings
             if (!SettingsStorage.ValidateSettings(_currentSettings))
             {
-                MessageBox.Show("Invalid settings. Please check your values.", "Validation Error",
+                MessageBox.Show("设置无效，请检查填写的内容。", "校验失败",
                               MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }

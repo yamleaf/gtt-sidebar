@@ -35,7 +35,7 @@ namespace gtt_sidebar.Widgets.StockWidget
     public partial class StockWidget : UserControl, IWidget, ITimerSubscriber
     {
         private List<StockItem> _stocks;
-        private double _usdToCadRate = 1.35; // Default, will be updated
+        private double _usdToCnyRate = 7.20; // 默认汇率，后续从接口更新
 
         public new string Name => "Stocks";
         public TimeSpan UpdateInterval => TimeSpan.FromMinutes(10);
@@ -77,7 +77,7 @@ namespace gtt_sidebar.Widgets.StockWidget
                     Symbol = "GOLD",
                     ApiSource = "Yahoo",
                     PairName = "GC=F",
-                    DisplayName = "Gold/oz",
+                    DisplayName = "黄金/盎司",
                     RequiresFxConversion = true
                 }
             };
@@ -130,7 +130,7 @@ namespace gtt_sidebar.Widgets.StockWidget
 
             var priceText = new TextBlock
             {
-                Text = "Loading...",
+                Text = "加载中…",
                 FontSize = 9, // BIGGER price value
                 //FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(Color.FromRgb(51, 51, 51)),
@@ -222,7 +222,7 @@ namespace gtt_sidebar.Widgets.StockWidget
 
             Dispatcher.Invoke(() =>
             {
-                LastUpdateText.Text = $"Updated: {DateTime.Now:HH:mm}";
+                LastUpdateText.Text = $"更新于：{DateTime.Now:HH:mm}";
             });
         }
 
@@ -230,7 +230,7 @@ namespace gtt_sidebar.Widgets.StockWidget
         {
             try
             {
-                var url = "https://query1.finance.yahoo.com/v8/finance/chart/USDCAD=X?period1=1640995200&period2=9999999999&interval=1d";
+                var url = "https://query1.finance.yahoo.com/v8/finance/chart/USDCNY=X?period1=1640995200&period2=9999999999&interval=1d";
                 var response = await SharedResourceManager.Instance.HttpClient.GetStringAsync(url);
                 var data = JObject.Parse(response);
 
@@ -238,8 +238,8 @@ namespace gtt_sidebar.Widgets.StockWidget
                 var meta = chart["meta"];
                 var currentPrice = (double)meta["regularMarketPrice"];
 
-                _usdToCadRate = currentPrice;
-                System.Diagnostics.Debug.WriteLine($"USD/CAD rate updated: {_usdToCadRate:F4}");
+                _usdToCnyRate = currentPrice;
+                System.Diagnostics.Debug.WriteLine($"USD/CNY rate updated: {_usdToCnyRate:F4}");
             }
             catch
             {
@@ -265,7 +265,7 @@ namespace gtt_sidebar.Widgets.StockWidget
                 System.Diagnostics.Debug.WriteLine($"Error updating {stock.Symbol}: {ex.Message}");
                 Dispatcher.Invoke(() =>
                 {
-                    stock.PriceTextBlock.Text = "Error";
+                    stock.PriceTextBlock.Text = "加载失败";
                     stock.ChangeTextBlock.Text = "--";
                     stock.ArrowTextBlock.Text = "⚠️";
                 });
@@ -314,8 +314,8 @@ namespace gtt_sidebar.Widgets.StockWidget
                 // Convert to CAD if needed
                 if (stock.RequiresFxConversion)
                 {
-                    currentPrice *= _usdToCadRate;
-                    previousClosePrice *= _usdToCadRate;
+                    currentPrice *= _usdToCnyRate;
+                    previousClosePrice *= _usdToCnyRate;
                 }
 
                 // Calculate daily change (current vs previous close)
@@ -365,7 +365,7 @@ namespace gtt_sidebar.Widgets.StockWidget
                                 // Convert to CAD if needed
                                 if (stock.RequiresFxConversion)
                                 {
-                                    closePrice *= _usdToCadRate;
+                                    closePrice *= _usdToCnyRate;
                                 }
 
                                 priceData.Add((date, closePrice));
@@ -439,7 +439,7 @@ namespace gtt_sidebar.Widgets.StockWidget
                         // Convert to CAD if needed
                         if (stock.RequiresFxConversion)
                         {
-                            price *= _usdToCadRate;
+                            price *= _usdToCnyRate;
                         }
                         priceData.Add((date, price));
                     }
@@ -470,13 +470,14 @@ namespace gtt_sidebar.Widgets.StockWidget
 
         private string FormatCurrency(double amount)
         {
+            // 人民币计价（¥ 符号，千分位）
             if (amount >= 1000)
             {
-                return amount.ToString("$#,##0", CultureInfo.CreateSpecificCulture("en-CA"));
+                return amount.ToString("¥#,##0", CultureInfo.InvariantCulture);
             }
             else
             {
-                return amount.ToString("$0.00", CultureInfo.CreateSpecificCulture("en-CA"));
+                return amount.ToString("¥0.00", CultureInfo.InvariantCulture);
             }
         }
 

@@ -20,7 +20,7 @@
 
                 <!-- Weather Description -->
                 <TextBlock x:Name="WeatherDescription" 
-                           Text="Sunny" 
+                           Text="晴" 
                            Foreground="#333333" 
                            FontSize="10"
                            FontWeight="SemiBold"
@@ -40,28 +40,28 @@
             <Border BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="0,6,0,0">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <!-- Day 1 -->
-                    <StackPanel Margin="0,0,8,0" HorizontalAlignment="Center">
+                    <StackPanel Margin="0,0,6,0" HorizontalAlignment="Center">
                         <TextBlock x:Name="Day1Icon" Text="⛅" FontSize="14" HorizontalAlignment="Center"/>
-                        <TextBlock x:Name="Day1Temp" Text="19°" Foreground="#666666" FontSize="8" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="Day1Temp" Text="--°" Foreground="#666666" FontSize="7" HorizontalAlignment="Center"/>
                     </StackPanel>
 
                     <!-- Day 2 -->
-                    <StackPanel Margin="0,0,8,0" HorizontalAlignment="Center">
+                    <StackPanel Margin="0,0,6,0" HorizontalAlignment="Center">
                         <TextBlock x:Name="Day2Icon" Text="🌧️" FontSize="14" HorizontalAlignment="Center"/>
-                        <TextBlock x:Name="Day2Temp" Text="16°" Foreground="#666666" FontSize="8" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="Day2Temp" Text="--°" Foreground="#666666" FontSize="7" HorizontalAlignment="Center"/>
                     </StackPanel>
 
                     <!-- Day 3 -->
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock x:Name="Day3Icon" Text="☀️" FontSize="14" HorizontalAlignment="Center"/>
-                        <TextBlock x:Name="Day3Temp" Text="23°" Foreground="#666666" FontSize="8" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="Day3Temp" Text="--°" Foreground="#666666" FontSize="7" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
             <!-- Location (clickable) -->
             <TextBlock x:Name="LocationText" 
-                       Text="Saint-Joseph-de-Beauce" 
+                       Text="加载中…" 
                        Foreground="#999999" 
                        FontSize="8"
                        HorizontalAlignment="Center"

@@ -33,6 +33,33 @@ namespace gtt_sidebar.Core.Settings
         public double MarginSide { get; set; } = 5;
 
         /// <summary>
+        /// 失去焦点后自动贴边隐藏
+        /// </summary>
+        public bool AutoHideOnFocusLost { get; set; } = true;
+
+        /// <summary>
+        /// 失去焦点后延迟多少毫秒才开始隐藏（避免误触发）
+        /// </summary>
+        public int AutoHideDelayMs { get; set; } = 600;
+
+        /// <summary>
+        /// 隐藏后仍然露在屏幕内、用于鼠标感应的像素宽度
+        /// </summary>
+        public double AutoHidePeekPx { get; set; } = 3;
+
+        /// <summary>
+        /// 边缘感应区顶部留白（占屏幕高度比例，0~0.5）。
+        /// 用于避开窗口右上角的关闭/最小化按钮，避免唤回时把按钮挡住。
+        /// </summary>
+        public double AutoHideEdgeTopRatio { get; set; } = 0.25;
+
+        /// <summary>
+        /// 边缘感应区底部留白（占屏幕高度比例，0~0.5）。
+        /// 用于避开任务栏托盘区域。
+        /// </summary>
+        public double AutoHideEdgeBottomRatio { get; set; } = 0.15;
+
+        /// <summary>
         /// Validates that all settings are within reasonable bounds
         /// </summary>
         public bool IsValid()
@@ -40,7 +67,11 @@ namespace gtt_sidebar.Core.Settings
             return Width >= 100 && Width <= 200 &&
                    MarginTop >= 0 && MarginTop <= 50 &&
                    MarginBottom >= 0 && MarginBottom <= 50 &&
-                   MarginSide >= 0 && MarginSide <= 50;
+                   MarginSide >= 0 && MarginSide <= 50 &&
+                   AutoHideDelayMs >= 0 && AutoHideDelayMs <= 3000 &&
+                   AutoHidePeekPx >= 0 && AutoHidePeekPx <= 20 &&
+                   AutoHideEdgeTopRatio >= 0 && AutoHideEdgeTopRatio <= 0.5 &&
+                   AutoHideEdgeBottomRatio >= 0 && AutoHideEdgeBottomRatio <= 0.5;
         }
 
         /// <summary>
@@ -52,6 +83,16 @@ namespace gtt_sidebar.Core.Settings
             MarginTop = Math.Max(0, Math.Min(50, MarginTop));
             MarginBottom = Math.Max(0, Math.Min(50, MarginBottom));
             MarginSide = Math.Max(0, Math.Min(50, MarginSide));
+            AutoHideDelayMs = Math.Max(0, Math.Min(3000, AutoHideDelayMs));
+            AutoHidePeekPx = Math.Max(0, Math.Min(20, AutoHidePeekPx));
+            AutoHideEdgeTopRatio = Math.Max(0, Math.Min(0.5, AutoHideEdgeTopRatio));
+            AutoHideEdgeBottomRatio = Math.Max(0, Math.Min(0.5, AutoHideEdgeBottomRatio));
+
+            // 顶+底留白不能把感应区挤没了（至少保留 20% 高度可触发）
+            if (AutoHideEdgeTopRatio + AutoHideEdgeBottomRatio > 0.8)
+            {
+                AutoHideEdgeBottomRatio = Math.Max(0, 0.8 - AutoHideEdgeTopRatio);
+            }
         }
 
         /// <summary>

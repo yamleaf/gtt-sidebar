@@ -53,7 +53,7 @@ namespace gtt_sidebar.Widgets.Notes
                 System.Diagnostics.Debug.WriteLine($"NotesWidget InitializeAsync error: {ex.Message}");
                 // Create emergency fallback
                 _notesData = new NotesData();
-                _notesData.EnsureDefaultTab("Hi. This is your notepad.");
+                _notesData.EnsureDefaultTab("你好，这里是你的记事本。");
             }
         }
 
@@ -65,23 +65,23 @@ namespace gtt_sidebar.Widgets.Notes
                 {
                     // Show preview of the active tab
                     var activeTab = _notesData.GetActiveTab();
-                    PreviewText.Text = activeTab?.GetPreview() ?? "Click to add notes...";
+                    PreviewText.Text = activeTab?.GetPreview() ?? "点击此处开始记录…";
 
                     // Update tab count
                     var tabCount = _notesData.Tabs.Count;
-                    TabCountText.Text = tabCount == 1 ? "1 tab" : $"{tabCount} tabs";
+                    TabCountText.Text = tabCount == 1 ? "1 个标签" : $"{tabCount} 个标签";
                 }
                 else
                 {
-                    PreviewText.Text = "Click to add notes...";
-                    TabCountText.Text = "0 tabs";
+                    PreviewText.Text = "点击此处开始记录…";
+                    TabCountText.Text = "0 个标签";
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"UpdatePreview error: {ex.Message}");
-                PreviewText.Text = "Click to add notes...";
-                TabCountText.Text = "0 tabs";
+                PreviewText.Text = "点击此处开始记录…";
+                TabCountText.Text = "0 个标签";
             }
         }
 
@@ -104,7 +104,7 @@ namespace gtt_sidebar.Widgets.Notes
                     {
                         System.Diagnostics.Debug.WriteLine("NotesWidget: LoadNotes still returned null, creating emergency default");
                         _notesData = new NotesData();
-                        _notesData.EnsureDefaultTab("Hi. This is your notepad.");
+                        _notesData.EnsureDefaultTab("你好，这里是你的记事本。");
                     }
                     UpdatePreview();
                 }
@@ -114,6 +114,9 @@ namespace gtt_sidebar.Widgets.Notes
 
                 // Get main window reference once
                 var mainWindow = Application.Current.MainWindow;
+
+                // 弹窗打开期间抑制侧边栏自动隐藏，避免操作到一半侧边栏消失
+                SuppressAutoHide(mainWindow);
 
                 // If popup exists but is hidden, just show it
                 if (_popup != null)
@@ -144,6 +147,8 @@ namespace gtt_sidebar.Widgets.Notes
                         _popup.NotesChanged -= OnNotesChanged;
                         _popup = null;
                     }
+                    // 弹窗关闭后恢复自动隐藏
+                    ResumeAutoHide(mainWindow);
                 };
 
                 // Position popup relative to sidebar
@@ -159,7 +164,7 @@ namespace gtt_sidebar.Widgets.Notes
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error opening notes popup: {ex.Message}");
-                MessageBox.Show($"Error opening notes: {ex.Message}", "Notes Error",
+                MessageBox.Show($"打开备注失败：{ex.Message}", "备注错误",
                               MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
@@ -171,6 +176,22 @@ namespace gtt_sidebar.Widgets.Notes
 
             // Save to storage
             SharedResourceManager.Instance.QueueSave("notes", _notesData);
+        }
+
+        /// <summary>
+        /// 通知主窗口抑制自动隐藏
+        /// </summary>
+        private void SuppressAutoHide(Window mainWindow)
+        {
+            (mainWindow as gtt_sidebar.Core.Application.MainWindow)?.SuppressAutoHide();
+        }
+
+        /// <summary>
+        /// 通知主窗口恢复自动隐藏
+        /// </summary>
+        private void ResumeAutoHide(Window mainWindow)
+        {
+            (mainWindow as gtt_sidebar.Core.Application.MainWindow)?.ResumeAutoHide();
         }
 
         public void Dispose()

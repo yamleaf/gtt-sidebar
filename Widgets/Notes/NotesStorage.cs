@@ -12,12 +12,10 @@ namespace gtt_sidebar.Widgets.Notes
     /// </summary>
     public static class NotesStorage
     {
-        private static readonly string _appDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "gtt-sidebar");
+        private static readonly string _appDataPath = gtt_sidebar.Core.AppPaths.AppDataPath;
 
         private static readonly string _notesFilePath = Path.Combine(_appDataPath, "notes.json");
-        private const string DEFAULT_CONTENT = "Hi. This is your notepad.";
+        private const string DEFAULT_CONTENT = "你好，这里是你的记事本。";
 
         /// <summary>
         /// Async version - loads notes data from file, creates default if file doesn't exist

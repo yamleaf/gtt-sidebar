@@ -170,14 +170,14 @@ namespace gtt_sidebar.Core.Settings
                     Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Core", "Icons", "DefaultIcons", $"{iconName}.png"),
                     
                     // In AppData (where other data is stored)
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "gtt-sidebar", "DefaultIcons", $"{iconName}.png"),
+                    Path.Combine(gtt_sidebar.Core.AppPaths.DefaultIconsPath, $"{iconName}.png"),
                     
                     // Relative to executable
                     Path.Combine("Core", "Icons", "DefaultIcons", $"{iconName}.png"),
                     // Direct in executable directory
                     Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DefaultIcons", $"{iconName}.png"),
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "gtt-sidebar", "icons", $"{iconName}.png"),
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "gtt-sidebar", "icons", $"{iconName}.svg")
+                    Path.Combine(gtt_sidebar.Core.AppPaths.IconsPath, $"{iconName}.png"),
+                    Path.Combine(gtt_sidebar.Core.AppPaths.IconsPath, $"{iconName}.svg")
 
                     
                 };
@@ -230,8 +230,8 @@ namespace gtt_sidebar.Core.Settings
 
                 var openFileDialog = new OpenFileDialog
                 {
-                    Title = "Select Custom Icon",
-                    Filter = "PNG Files (*.png)|*.png|All Image Files (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.ico)|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.ico",
+                    Title = "选择自定义图标",
+                    Filter = "PNG 图片 (*.png)|*.png|所有图片文件 (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.ico)|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.ico",
                     FilterIndex = 1
                 };
 

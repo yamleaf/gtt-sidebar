@@ -27,13 +27,13 @@
                           VerticalAlignment="Center"
                           Foreground="#666666"/>
 
-                <TextBlock Grid.Column="1" Text="RAM" 
+                <TextBlock Grid.Column="1" Text="内存" 
                           FontSize="8" FontWeight="Bold" 
                           HorizontalAlignment="Center" 
                           VerticalAlignment="Center"
                           Foreground="#666666"/>
 
-                <TextBlock Grid.Column="2" Text="PING" 
+                <TextBlock Grid.Column="2" Text="延迟" 
                           FontSize="8" FontWeight="Bold" 
                           HorizontalAlignment="Center" 
                           VerticalAlignment="Center"
@@ -53,21 +53,21 @@
                           HorizontalAlignment="Center" 
                           VerticalAlignment="Center"
                           Foreground="Black"
-                          ToolTip="CPU usage"/>
+                          ToolTip="CPU 占用率"/>
 
                 <TextBlock x:Name="RamValue" Grid.Column="1" Text="-" 
                           FontSize="9" FontWeight="Normal" 
                           HorizontalAlignment="Center" 
                           VerticalAlignment="Center"
                           Foreground="Black"
-                          ToolTip="RAM usage"/>
+                          ToolTip="内存占用率"/>
 
                 <TextBlock x:Name="PingValue" Grid.Column="2" Text="-" 
                           FontSize="9" FontWeight="Normal" 
                           HorizontalAlignment="Center" 
                           VerticalAlignment="Center"
                           Foreground="Black"
-                          ToolTip="Network ping latency"/>
+                          ToolTip="网络延迟"/>
             </Grid>
         </Grid>
     </Border>

@@ -12,12 +12,9 @@ namespace gtt_sidebar.Core.Settings
     /// </summary>
     public static class ShortcutsStorage
     {
-        private static readonly string _appDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "gtt-sidebar");
-
+        private static readonly string _appDataPath = gtt_sidebar.Core.AppPaths.AppDataPath;
         private static readonly string _shortcutsFilePath = Path.Combine(_appDataPath, "shortcuts.json");
-        private static readonly string _iconsPath = Path.Combine(_appDataPath, "icons");
+        private static readonly string _iconsPath = gtt_sidebar.Core.AppPaths.IconsPath;
 
         /// <summary>
         /// Async version - loads shortcuts data from file, creates default if file doesn't exist
@@ -52,6 +49,13 @@ namespace gtt_sidebar.Core.Settings
 
                 // clean up any invalid data
                 shortcutsData.ValidateAndCleanup();
+
+                // 把旧版英文默认快捷方式迁移为中文，并把结果回写文件（只做一次）
+                if (shortcutsData.LocalizeLegacyDefaults())
+                {
+                    await SaveShortcutsAsync(shortcutsData);
+                    System.Diagnostics.Debug.WriteLine("ShortcutsStorage: 已回写本地化后的快捷方式");
+                }
 
                 if (shortcutsData.Shortcuts.Count == 0)
                 {

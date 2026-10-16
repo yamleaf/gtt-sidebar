@@ -8,7 +8,6 @@ using System.Windows.Threading;
 using gtt_sidebar.Core.Managers;
 using gtt_sidebar.Core.Settings;
 using gtt_sidebar.Widgets.ClockWidget;
-using gtt_sidebar.Widgets.StockWidget;
 using gtt_sidebar.Widgets.WeatherWidget;
 
 namespace gtt_sidebar.Core.Application
@@ -20,6 +19,8 @@ namespace gtt_sidebar.Core.Application
         private SettingsWindow _settingsWindow;
         private NotifyIcon _trayIcon;
         private bool _isClosing = false;
+        private AutoHideManager _autoHide;
+        private ToolStripMenuItem _autoHideMenuItem;
 
         public MainWindow()
         {
@@ -27,16 +28,53 @@ namespace gtt_sidebar.Core.Application
 
             // Load settings and apply to window
             _currentSettings = SettingsStorage.LoadSettings();
+
+            // 自动隐藏管理器必须先于 ApplySettings 创建，否则无法记录显示位置
+            _autoHide = new AutoHideManager(this);
             ApplySettings(_currentSettings);
+            _autoHide.ApplySettings(_currentSettings);
 
             var resourceManager = SharedResourceManager.Instance;
 
             _widgetManager = new WidgetManager();
             LoadWidgets();
 
+            // 失去焦点贴边隐藏
+            this.Activated += MainWindow_Activated;
+            this.Deactivated += MainWindow_Deactivated;
+
             // Create tray icon AFTER window is shown
             Dispatcher.BeginInvoke(new Action(CreateTrayIcon), DispatcherPriority.Background);
 
+        }
+
+        private void MainWindow_Activated(object sender, EventArgs e)
+        {
+            _autoHide?.OnActivated();
+        }
+
+        private void MainWindow_Deactivated(object sender, EventArgs e)
+        {
+            // 设置窗口打开时不隐藏侧边栏，避免设置到一半侧边栏跑掉
+            if (_settingsWindow != null && _settingsWindow.IsVisible) return;
+
+            _autoHide?.OnDeactivated();
+        }
+
+        /// <summary>
+        /// 供子窗口（备注弹窗、图标选择器等）在打开期间抑制自动隐藏
+        /// </summary>
+        public void SuppressAutoHide()
+        {
+            _autoHide?.SuppressAutoHide();
+        }
+
+        /// <summary>
+        /// 解除自动隐藏抑制
+        /// </summary>
+        public void ResumeAutoHide()
+        {
+            _autoHide?.ResumeAutoHide();
         }
 
         private void CreateTrayIcon()
@@ -60,23 +98,37 @@ namespace gtt_sidebar.Core.Application
             {
                 _trayIcon.Icon = SystemIcons.Application;
             }
-            _trayIcon.Text = "gtt sidebar";
+            _trayIcon.Text = "桌面侧边栏";
             _trayIcon.Visible = true;
 
             var contextMenu = new ContextMenuStrip();
-            contextMenu.Items.Add("Show", null, (s, e) => ShowWindow());
-            contextMenu.Items.Add("Hide", null, (s, e) => HideWindow());
+            contextMenu.Items.Add("显示", null, (s, e) => ShowWindow());
+            contextMenu.Items.Add("隐藏", null, (s, e) => HideWindow());
             contextMenu.Items.Add("-");
-            contextMenu.Items.Add("Settings", null, (s, e) => SettingsButton_Click(null, null));
-            var alwaysOnTopItem = contextMenu.Items.Add("Always on Top", null, (s, e) => ToggleAlwaysOnTop());
+            contextMenu.Items.Add("设置…", null, (s, e) => SettingsButton_Click(null, null));
+            var autoHideItem = contextMenu.Items.Add("失去焦点自动隐藏", null, (s, e) => ToggleAutoHide());
+            _autoHideMenuItem = (ToolStripMenuItem)autoHideItem;
+            _autoHideMenuItem.Checked = _currentSettings.Window.AutoHideOnFocusLost;
+            var alwaysOnTopItem = contextMenu.Items.Add("窗口置顶", null, (s, e) => ToggleAlwaysOnTop());
             ((ToolStripMenuItem)alwaysOnTopItem).Checked = this.Topmost;
-            var runAtStartupItem = contextMenu.Items.Add("Run at Startup", null, (s, e) => ToggleRunAtStartup());
+            var runAtStartupItem = contextMenu.Items.Add("开机自启动", null, (s, e) => ToggleRunAtStartup());
             ((ToolStripMenuItem)runAtStartupItem).Checked = StartupManager.IsStartupEnabled();
             contextMenu.Items.Add("-");
-            contextMenu.Items.Add("Exit", null, (s, e) => ExitApplication());
+            contextMenu.Items.Add("退出", null, (s, e) => ExitApplication());
 
             _trayIcon.ContextMenuStrip = contextMenu;
             _trayIcon.DoubleClick += (s, e) => ToggleWindow();
+        }
+
+        /// <summary>
+        /// 切换自动隐藏并持久化
+        /// </summary>
+        private void ToggleAutoHide()
+        {
+            _currentSettings.Window.AutoHideOnFocusLost = !_currentSettings.Window.AutoHideOnFocusLost;
+            SharedResourceManager.Instance.UpdateSettings(_currentSettings);
+            _autoHide?.ApplySettings(_currentSettings);
+            UpdateTrayMenuChecks();
         }
 
         private void ToggleAlwaysOnTop()
@@ -97,13 +149,17 @@ namespace gtt_sidebar.Core.Application
                 var item = _trayIcon.ContextMenuStrip.Items[i] as ToolStripMenuItem;
                 if (item == null) continue;
 
-                if (item.Text == "Always on Top")
+                if (item.Text == "窗口置顶")
                 {
                     item.Checked = this.Topmost;
                 }
-                else if (item.Text == "Run at Startup")
+                else if (item.Text == "开机自启动")
                 {
                     item.Checked = StartupManager.IsStartupEnabled();
+                }
+                else if (item.Text == "失去焦点自动隐藏")
+                {
+                    item.Checked = _currentSettings.Window.AutoHideOnFocusLost;
                 }
             }
         }
@@ -112,17 +168,20 @@ namespace gtt_sidebar.Core.Application
         {
             this.Show();
             this.WindowState = WindowState.Normal;
+            // 唤回时若处于贴边隐藏状态，先滑回原位
+            _autoHide?.ShowSidebar(true);
             this.Activate();
         }
 
         private void HideWindow()
         {
+            _autoHide?.ShowSidebar(false);
             this.Hide();
         }
 
         private void ToggleWindow()
         {
-            if (this.IsVisible)
+            if (this.IsVisible && !(_autoHide?.IsHidden ?? false))
                 HideWindow();
             else
                 ShowWindow();
@@ -138,6 +197,8 @@ namespace gtt_sidebar.Core.Application
         {
             this.Width = settings.Window.Width;
             WindowPositioner.PositionSidebarWindow(this, settings.Window);
+            // 记录显示位置，供自动隐藏滑回使用
+            _autoHide?.CaptureShownPosition();
         }
 
         private void LoadWidgets()
@@ -189,6 +250,10 @@ namespace gtt_sidebar.Core.Application
                 _settingsWindow.Left = this.Left + this.Width + 10;
             }
 
+            // 设置窗口打开期间抑制自动隐藏（含图标选择器）
+            _autoHide?.SuppressAutoHide();
+            _settingsWindow.Closed += (closedSender, closedArgs) => _autoHide?.ResumeAutoHide();
+
             _settingsWindow.Show();
         }
 
@@ -231,6 +296,8 @@ namespace gtt_sidebar.Core.Application
             SharedResourceManager.Instance.UpdateSettings(_currentSettings);
 
             ApplySettings(_currentSettings);
+            _autoHide?.ApplySettings(_currentSettings);
+            UpdateTrayMenuChecks();
         }
 
         private void ToggleRunAtStartup()
@@ -247,8 +314,8 @@ namespace gtt_sidebar.Core.Application
             {
                 System.Diagnostics.Debug.WriteLine("Failed to change startup status");
                 // Optionally show a message box to the user
-                System.Windows.MessageBox.Show("Failed to change startup setting. Please check permissions.",
-                               "Startup Setting",
+                System.Windows.MessageBox.Show("修改开机自启动设置失败，请检查权限。",
+                               "开机自启动",
                                MessageBoxButton.OK,
                                MessageBoxImage.Warning);
             }
@@ -262,6 +329,7 @@ namespace gtt_sidebar.Core.Application
 
         protected override void OnClosed(EventArgs e)
         {
+            _autoHide?.Dispose();
             _trayIcon?.Dispose();
             base.OnClosed(e);
             _widgetManager?.DisposeWidgets();

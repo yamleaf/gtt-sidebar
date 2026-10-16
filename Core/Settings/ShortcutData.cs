@@ -259,17 +259,70 @@ namespace gtt_sidebar.Core.Settings
         }
 
         /// <summary>
+        /// 把旧版英文默认快捷方式迁移为中文名称与内置 PNG 图标。
+        /// 只处理“名称匹配旧默认项”的记录，用户自己改名过的快捷方式不受影响。
+        /// </summary>
+        /// <returns>是否发生了改动（调用方据此决定是否回写文件）</returns>
+        public bool LocalizeLegacyDefaults()
+        {
+            if (Shortcuts == null) return false;
+
+            // 旧默认项：英文名称 → (中文名称, 内置图标名)
+            var legacyMap = new Dictionary<string, Tuple<string, string>>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Calculator",      Tuple.Create("计算器",         "calculator") },
+                { "File Explorer",   Tuple.Create("文件资源管理器", "folder-open") },
+                { "Paint",           Tuple.Create("画图",           "palette") },
+                { "Command Prompt",  Tuple.Create("命令提示符",     "terminal-window") },
+                { "Notepad",         Tuple.Create("记事本",         "note-pencil") },
+                { "Task Manager",    Tuple.Create("任务管理器",     "pulse") },
+                { "Control Panel",   Tuple.Create("控制面板",       "wrench") },
+                { "Settings",        Tuple.Create("系统设置",       "wrench") }
+            };
+
+            var changed = false;
+
+            foreach (var shortcut in Shortcuts)
+            {
+                if (shortcut == null) continue;
+                if (string.IsNullOrWhiteSpace(shortcut.Label)) continue;
+
+                Tuple<string, string> mapped;
+                if (!legacyMap.TryGetValue(shortcut.Label.Trim(), out mapped)) continue;
+
+                shortcut.Label = mapped.Item1;
+                shortcut.IconType = "builtin";
+                shortcut.IconValue = mapped.Item2;
+                changed = true;
+
+                System.Diagnostics.Debug.WriteLine($"ShortcutsData: 迁移旧默认快捷方式 → {mapped.Item1}");
+            }
+
+            if (changed)
+            {
+                System.Diagnostics.Debug.WriteLine("ShortcutsData: 旧默认快捷方式已完成中文本地化");
+            }
+
+            return changed;
+        }
+
+        /// <summary>
         /// Creates default shortcuts for first-time users
         /// </summary>
         public static ShortcutsData CreateDefault()
         {
             var data = new ShortcutsData();
 
-            // Add default shortcuts: Calculator, File Explorer, MSPaint, CMD
-            data.AddShortcut("Calculator", "calc", "builtin", "🧮");
-            data.AddShortcut("File Explorer", "explorer", "builtin", "📁");
-            data.AddShortcut("Paint", "mspaint", "builtin", "🎨");
-            data.AddShortcut("Command Prompt", "cmd", "builtin", "🔳");
+            // 默认快捷方式：计算器、文件资源管理器、画图、命令提示符、
+            // 任务管理器、系统设置、记事本、任务计划/控制面板
+            data.AddShortcut("计算器", "calc", "builtin", "calculator");
+            data.AddShortcut("文件资源管理器", "explorer", "builtin", "folder-open");
+            data.AddShortcut("画图", "mspaint", "builtin", "palette");
+            data.AddShortcut("命令提示符", "cmd", "builtin", "terminal-window");
+            data.AddShortcut("任务管理器", "taskmgr", "builtin", "pulse");
+            data.AddShortcut("系统设置", "control", "builtin", "wrench");
+            data.AddShortcut("记事本", "notepad", "builtin", "note-pencil");
+            data.AddShortcut("终端 (PowerShell)", "powershell", "builtin", "brackets-curly");
 
             System.Diagnostics.Debug.WriteLine("ShortcutsData: Created default shortcuts");
             return data;

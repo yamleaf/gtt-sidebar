@@ -11,7 +11,31 @@ namespace gtt_sidebar.Core.Managers
     public static class StartupManager
     {
         private const string REGISTRY_KEY = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-        private const string APP_NAME = "gtt-sidebar";
+        private const string APP_NAME = "DesktopSidebar";
+
+        /// <summary>
+        /// 旧版使用的启动项名称：检测到残留时清理，避免重名残留导致开机启动重复
+        /// </summary>
+        private const string LEGACY_APP_NAME = "gtt-sidebar";
+
+        /// <summary>
+        /// 清理旧版本（gtt-sidebar）遗留的开机启动项
+        /// </summary>
+        private static void CleanupLegacyStartupEntry(RegistryKey key)
+        {
+            try
+            {
+                if (key.GetValue(LEGACY_APP_NAME) != null)
+                {
+                    key.DeleteValue(LEGACY_APP_NAME, false);
+                    System.Diagnostics.Debug.WriteLine("已清理旧版开机启动项：gtt-sidebar");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"清理旧版启动项失败：{ex.Message}");
+            }
+        }
 
         /// <summary>
         /// Checks if the application is currently set to run at startup
@@ -54,6 +78,9 @@ namespace gtt_sidebar.Core.Managers
                         System.Diagnostics.Debug.WriteLine("Could not open registry key for startup management");
                         return false;
                     }
+
+                    // 顺带清理旧版 gtt-sidebar 的启动项，避免重名残留
+                    CleanupLegacyStartupEntry(key);
 
                     if (enabled)
                     {

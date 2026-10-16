@@ -7,7 +7,7 @@
     <ProjectGuid>{53EBB57F-38E7-4B56-A773-2A8FDF916E7F}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <RootNamespace>gtt_sidebar</RootNamespace>
-    <AssemblyName>gtt-sidebar</AssemblyName>
+    <AssemblyName>DesktopSidebar</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
@@ -64,11 +64,13 @@
     <Reference Include="PresentationFramework" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Core\AppPaths.cs" />
     <ApplicationDefinition Include="Core\Application\App.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Core\Interfaces\ITimerSubscriber.cs" />
+    <Compile Include="Core\Managers\AutoHideManager.cs" />
     <Compile Include="Core\Managers\SharedResourceManager.cs" />
     <Compile Include="Core\Managers\StartupManager.cs" />
     <Compile Include="Core\Settings\IconCatalog.cs" />
@@ -101,14 +103,12 @@
     <Compile Include="Widgets\Notes\NotesWidget.xaml.cs">
       <DependentUpon>NotesWidget.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Widgets\Shortcuts\ShortcutsWidget.xaml.cs">
-      <DependentUpon>ShortcutsWidget.xaml</DependentUpon>
+    <Compile Include="Widgets\CalendarWidget\CalendarWidget.xaml.cs">
+      <DependentUpon>CalendarWidget.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Widgets\StockWidget\StockWidget.xaml.cs">
-      <DependentUpon>StockWidget.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Widgets\SystemMonitor\SystemMonitorWidget.xaml.cs">
-      <DependentUpon>SystemMonitorWidget.xaml</DependentUpon>
+    <Compile Include="Widgets\CalendarWidget\HolidayService.cs" />
+    <Compile Include="Widgets\SystemInfo\SystemInfoWidget.xaml.cs">
+      <DependentUpon>SystemInfoWidget.xaml</DependentUpon>
     </Compile>
     <Compile Include="Widgets\WeatherWidget\WeatherWidget.xaml.cs">
       <DependentUpon>WeatherWidget.xaml</DependentUpon>
@@ -150,11 +150,11 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Include="Widgets\StockWidget\StockWidget.xaml">
+    <Page Include="Widgets\CalendarWidget\CalendarWidget.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Include="Widgets\SystemMonitor\SystemMonitorWidget.xaml">
+    <Page Include="Widgets\SystemInfo\SystemInfoWidget.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

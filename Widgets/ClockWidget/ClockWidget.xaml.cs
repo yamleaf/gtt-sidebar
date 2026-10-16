@@ -38,7 +38,10 @@ namespace gtt_sidebar.Widgets.ClockWidget
         {
             var now = DateTime.Now;
             TimeDisplay.Text = now.ToString("HH:mm:ss");
-            DateDisplay.Text = now.ToString("MMMM dd, yyyy");
+
+            // 中文日期：2025年1月1日 星期三
+            var weekNames = new[] { "星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六" };
+            DateDisplay.Text = $"{now:yyyy年M月d日} {weekNames[(int)now.DayOfWeek]}";
         }
 
         public void Dispose()

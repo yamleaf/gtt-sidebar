@@ -11,12 +11,12 @@
         <StackPanel>
             <!-- Header -->
             <Grid Margin="0,0,0,4">
-                <TextBlock Text="Markets" 
+                <TextBlock Text="行情" 
                            Foreground="#333333" 
                            FontSize="10"
                            FontWeight="SemiBold"
                            HorizontalAlignment="Left"/>
-                <TextBlock Text="24h" 
+                <TextBlock Text="24小时" 
                            Foreground="#666666" 
                            FontSize="8"
                            HorizontalAlignment="Right"
@@ -30,7 +30,7 @@
 
             <!-- Last Update Info -->
             <TextBlock x:Name="LastUpdateText"
-                       Text="Updated: --"
+                       Text="更新于：--"
                        Foreground="#999999" 
                        FontSize="7"
                        HorizontalAlignment="Center"

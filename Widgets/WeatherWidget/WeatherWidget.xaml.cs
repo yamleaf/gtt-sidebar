@@ -1,29 +1,28 @@
 ﻿using System;
-using System.Linq;
-using System.Net.Http;
+using System.Globalization;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Threading;
 using Newtonsoft.Json.Linq;
 using gtt_sidebar.Core.Interfaces;
 using gtt_sidebar.Core.Managers;
 
 namespace gtt_sidebar.Widgets.WeatherWidget
 {
+    /// <summary>
+    /// 天气组件：数据源为 Open-Meteo（完全免费、无需 API Key、支持中文城市名）。
+    /// 先通过地理编码接口把城市名解析为经纬度，再查询当前天气与 3 天预报。
+    /// </summary>
     public partial class WeatherWidget : UserControl, IWidget, ITimerSubscriber
     {
-        private string _currentCity = "Saint-Joseph-de-Beauce,QC,CA";
-        private int _retryCount = 0;
-        private const int MAX_IMMEDIATE_RETRIES = 10;
-        private const int RETRY_DELAY_SECONDS = 10;
-        private const int FALLBACK_RETRY_MINUTES = 5;
-        private DispatcherTimer _retryTimer;
-        private bool _isRetrying = false;
+        // 默认城市（可用中文或英文，地理编码接口均支持）
+        private string _currentCity = "杭州";
+        private double? _latitude;
+        private double? _longitude;
 
-        // free OpenWeatherMap API key - you'll need to get your own
-        private const string API_KEY = "c9b2bd0c1ea061353ec9b02831f77c57"; // get from openweathermap.org
+        private int _retryCount = 0;
+        private const int MAX_IMMEDIATE_RETRIES = 3;
 
         public new string Name => "Weather";
         public TimeSpan UpdateInterval => TimeSpan.FromMinutes(30);
@@ -37,204 +36,236 @@ namespace gtt_sidebar.Widgets.WeatherWidget
 
         public async Task InitializeAsync()
         {
-            // subscribe to SharedResourceManager's timer system
             SharedResourceManager.Instance.Subscribe(this);
 
-            // initial update
+            LocationText.Text = _currentCity;
+
             await OnTimerTickAsync();
         }
 
         public async Task OnTimerTickAsync()
         {
-            // don't interfere if we're in retry mode
-            if (!_isRetrying)
-            {
-                _retryCount = 0; // reset retry count for new update cycle
-                await UpdateWeatherAsync();
-            }
+            await UpdateWeatherAsync();
         }
 
         private async Task UpdateWeatherAsync()
         {
             try
             {
-                // current weather
-                var currentUrl = $"https://api.openweathermap.org/data/2.5/weather?q={_currentCity}&appid={API_KEY}&units=metric";
-                var currentResponse = await SharedResourceManager.Instance.HttpClient.GetStringAsync(currentUrl);
-                var currentData = JObject.Parse(currentResponse);
+                await EnsureCoordinatesAsync();
 
-                // forecast
-                var forecastUrl = $"https://api.openweathermap.org/data/2.5/forecast?q={_currentCity}&appid={API_KEY}&units=metric";
-                var forecastResponse = await SharedResourceManager.Instance.HttpClient.GetStringAsync(forecastUrl);
-                var forecastData = JObject.Parse(forecastResponse);
+                if (!_latitude.HasValue || !_longitude.HasValue)
+                {
+                    SetErrorState("未找到该城市");
+                    return;
+                }
 
-                UpdateCurrentWeather(currentData);
-                UpdateForecast(forecastData);
+                var lat = _latitude.Value.ToString("F4", CultureInfo.InvariantCulture);
+                var lon = _longitude.Value.ToString("F4", CultureInfo.InvariantCulture);
+
+                // 当前天气 + 4 天预报（第一天用于对齐"今天"）
+                var url = "https://api.open-meteo.com/v1/forecast" +
+                          $"?latitude={lat}&longitude={lon}" +
+                          "&current=temperature_2m,weather_code" +
+                          "&daily=weather_code,temperature_2m_max,temperature_2m_min" +
+                          "&timezone=auto&forecast_days=4";
+
+                var response = await SharedResourceManager.Instance.HttpClient.GetStringAsync(url);
+                var data = JObject.Parse(response);
+
+                UpdateCurrentWeather(data);
+                UpdateForecast(data);
+
                 _retryCount = 0;
-                _isRetrying = false;
-                StopRetryTimer();
-
-                System.Diagnostics.Debug.WriteLine("Weather updated successfully");
+                System.Diagnostics.Debug.WriteLine("Weather updated successfully (Open-Meteo)");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Weather update error (attempt {_retryCount + 1}): {ex.Message}");
-                await HandleWeatherError();
+                _retryCount++;
+                System.Diagnostics.Debug.WriteLine($"Weather update error (attempt {_retryCount}): {ex.Message}");
+
+                SetErrorState(_retryCount <= MAX_IMMEDIATE_RETRIES
+                    ? $"加载失败（第 {_retryCount} 次重试）"
+                    : "网络连接异常");
             }
         }
 
-        private async Task HandleWeatherError()
+        /// <summary>
+        /// 通过地理编码接口把城市名解析为经纬度（中文名同样支持）
+        /// </summary>
+        private async Task EnsureCoordinatesAsync()
         {
-            _retryCount++;
+            if (_latitude.HasValue && _longitude.HasValue) return;
 
-            // show error state
-            WeatherDescription.Text = $"Error loading (retry {_retryCount})";
+            var url = "https://geocoding-api.open-meteo.com/v1/search" +
+                      $"?name={Uri.EscapeDataString(_currentCity)}&count=1&language=zh&format=json";
+
+            var response = await SharedResourceManager.Instance.HttpClient.GetStringAsync(url);
+            var data = JObject.Parse(response);
+
+            var results = data["results"] as JArray;
+            if (results == null || results.Count == 0)
+            {
+                _latitude = null;
+                _longitude = null;
+                return;
+            }
+
+            var first = results[0];
+            _latitude = (double)first["latitude"];
+            _longitude = (double)first["longitude"];
+
+            // 用接口返回的规范中文名刷新显示（例如输入 "hangzhou" 显示 "杭州"）
+            var name = (string)first["name"];
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                LocationText.Text = name;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"Geocoded {_currentCity} → {_latitude}, {_longitude} ({name})");
+        }
+
+        private void UpdateCurrentWeather(JObject data)
+        {
+            var current = data["current"];
+            if (current == null) return;
+
+            var temp = Math.Round((double)current["temperature_2m"]);
+            var code = (int)current["weather_code"];
+
+            Temperature.Text = $"{temp}°C";
+            WeatherDescription.Text = GetWeatherDescription(code);
+            WeatherIcon.Text = GetWeatherIcon(code);
+        }
+
+        /// <summary>
+        /// 3 天预报：跳过索引 0（今天），取接下来三天
+        /// </summary>
+        private void UpdateForecast(JObject data)
+        {
+            var daily = data["daily"];
+            if (daily == null) return;
+
+            var codes = daily["weather_code"] as JArray;
+            var maxTemps = daily["temperature_2m_max"] as JArray;
+            var minTemps = daily["temperature_2m_min"] as JArray;
+
+            if (codes == null || maxTemps == null || minTemps == null) return;
+
+            var icons = new TextBlock[] { Day1Icon, Day2Icon, Day3Icon };
+            var labels = new TextBlock[] { Day1Temp, Day2Temp, Day3Temp };
+
+            // 从第 1 项开始（第 0 项是今天）
+            for (int i = 0; i < 3; i++)
+            {
+                var idx = i + 1;
+                if (idx >= codes.Count)
+                {
+                    icons[i].Text = "?";
+                    labels[i].Text = "--°";
+                    continue;
+                }
+
+                var code = (int)codes[idx];
+                var max = Math.Round((double)maxTemps[idx]);
+                var min = Math.Round((double)minTemps[idx]);
+
+                icons[i].Text = GetWeatherIcon(code);
+                labels[i].Text = $"{max}°/{min}°";
+            }
+        }
+
+        private void SetErrorState(string message)
+        {
+            WeatherDescription.Text = message;
             Temperature.Text = "--°C";
 
-            // clear forecast on error
             Day1Icon.Text = "?";
             Day1Temp.Text = "--°";
             Day2Icon.Text = "?";
             Day2Temp.Text = "--°";
             Day3Icon.Text = "?";
             Day3Temp.Text = "--°";
-
-            if (_retryCount <= MAX_IMMEDIATE_RETRIES)
-            {
-                // immediate retries: wait 10 seconds
-                System.Diagnostics.Debug.WriteLine($"Scheduling immediate retry {_retryCount}/{MAX_IMMEDIATE_RETRIES} in {RETRY_DELAY_SECONDS} seconds");
-
-                _isRetrying = true;
-                StartRetryTimer(TimeSpan.FromSeconds(RETRY_DELAY_SECONDS));
-            }
-            else
-            {
-                // fallback retries: wait 5 minutes
-                System.Diagnostics.Debug.WriteLine($"Switching to fallback retry mode - will retry every {FALLBACK_RETRY_MINUTES} minutes");
-
-                _isRetrying = true;
-                StartRetryTimer(TimeSpan.FromMinutes(FALLBACK_RETRY_MINUTES));
-
-                WeatherDescription.Text = "Connection issues";
-            }
         }
 
-        private void UpdateCurrentWeather(JObject data)
+        /// <summary>
+        /// WMO 天气代码 → 中文描述
+        /// </summary>
+        private string GetWeatherDescription(int code)
         {
-            var temp = Math.Round((double)data["main"]["temp"]);
-            var description = (string)data["weather"][0]["description"];
-            var weatherId = (int)data["weather"][0]["id"];
-
-            Temperature.Text = $"{temp}°C";
-            WeatherDescription.Text = CapitalizeFirst(description);
-            WeatherIcon.Text = GetWeatherIcon(weatherId);
+            if (code == 0) return "晴";
+            if (code == 1) return "晴间多云";
+            if (code == 2) return "多云";
+            if (code == 3) return "阴";
+            if (code == 45 || code == 48) return "雾";
+            if (code >= 51 && code <= 57) return "毛毛雨";
+            if (code >= 61 && code <= 67) return "雨";
+            if (code >= 71 && code <= 77) return "雪";
+            if (code >= 80 && code <= 82) return "阵雨";
+            if (code >= 85 && code <= 86) return "阵雪";
+            if (code >= 95 && code <= 99) return "雷暴";
+            return "未知";
         }
 
-        private void UpdateForecast(JObject data)
+        /// <summary>
+        /// WMO 天气代码 → 图标
+        /// </summary>
+        private string GetWeatherIcon(int code)
         {
-            var forecasts = (JArray)data["list"];
-            var dailyTemps = new double[3];
-            var dailyIcons = new string[3];
+            // 晴 / 晴间多云 / 多云 / 阴
+            if (code == 0) return "☀️";
+            if (code == 1) return "🌤️";
+            if (code == 2) return "⛅";
+            if (code == 3) return "☁️";
 
-            // get next 3 days (simplified - every 8th entry represents ~24 hours)
-            for (int i = 0; i < 3 && i * 8 < forecasts.Count; i++)
-            {
-                var forecast = forecasts[i * 8]; // every 8th entry (24 hours)
-                dailyTemps[i] = Math.Round((double)forecast["main"]["temp"]);
-                dailyIcons[i] = GetWeatherIcon((int)forecast["weather"][0]["id"]);
-            }
+            // 雾
+            if (code == 45 || code == 48) return "🌫️";
 
-            Day1Icon.Text = dailyIcons[0];
-            Day1Temp.Text = $"{dailyTemps[0]}°";
-            Day2Icon.Text = dailyIcons[1];
-            Day2Temp.Text = $"{dailyTemps[1]}°";
-            Day3Icon.Text = dailyIcons[2];
-            Day3Temp.Text = $"{dailyTemps[2]}°";
-        }
+            // 毛毛雨
+            if (code >= 51 && code <= 57) return "🌦️";
 
-        private string GetWeatherIcon(int weatherId)
-        {
-            // using traditional if-else instead of switch expressions for C# 7.3 compatibility
-            if (weatherId >= 200 && weatherId <= 232)
-                return "⛈️"; // thunderstorm
-            else if (weatherId >= 300 && weatherId <= 321)
-                return "🌦️"; // drizzle
-            else if (weatherId >= 500 && weatherId <= 531)
-                return "🌧️"; // rain
-            else if (weatherId >= 600 && weatherId <= 622)
-                return "❄️"; // snow
-            else if (weatherId >= 701 && weatherId <= 781)
-                return "🌫️"; // atmosphere
-            else if (weatherId == 800)
-                return "☀️"; // clear
-            else if (weatherId == 801)
-                return "🌤️"; // few clouds
-            else if (weatherId == 802)
-                return "⛅"; // scattered clouds
-            else if (weatherId >= 803 && weatherId <= 804)
-                return "☁️"; // broken/overcast clouds
-            else
-                return "🌡️"; // default
-        }
+            // 雨（含冻雨）
+            if (code >= 61 && code <= 67) return "🌧️";
 
-        private string CapitalizeFirst(string input)
-        {
-            if (string.IsNullOrEmpty(input)) return input;
-            return char.ToUpper(input[0]) + input.Substring(1);
+            // 雪
+            if (code >= 71 && code <= 77) return "❄️";
+
+            // 阵雨
+            if (code >= 80 && code <= 82) return "🌧️";
+
+            // 阵雪
+            if (code >= 85 && code <= 86) return "❄️";
+
+            // 雷暴（含冰雹）
+            if (code >= 95 && code <= 99) return "⛈️";
+
+            return "🌡️";
         }
 
         private void LocationText_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            // simple input dialog for changing city
             var newCity = Microsoft.VisualBasic.Interaction.InputBox(
-                "Enter city name (e.g., 'Montreal,QC,CA'):",
-                "Change Location",
+                "请输入城市名称（支持中文，例如：杭州、上海、北京）：",
+                "更改定位",
                 _currentCity);
 
             if (!string.IsNullOrWhiteSpace(newCity))
             {
-                _currentCity = newCity;
-                LocationText.Text = newCity.Split(',')[0]; // Show just city name
+                _currentCity = newCity.Trim();
+
+                // 城市变了，需要重新解析经纬度
+                _latitude = null;
+                _longitude = null;
+                _retryCount = 0;
+
+                LocationText.Text = _currentCity;
                 _ = UpdateWeatherAsync();
-            }
-        }
-
-        private void StartRetryTimer(TimeSpan interval)
-        {
-            StopRetryTimer();
-
-            _retryTimer = new DispatcherTimer();
-            _retryTimer.Interval = interval;
-            _retryTimer.Tick += RetryTimer_Tick;
-            _retryTimer.Start();
-        }
-
-        private void StopRetryTimer()
-        {
-            if (_retryTimer != null)
-            {
-                _retryTimer.Stop();
-                _retryTimer.Tick -= RetryTimer_Tick;
-                _retryTimer = null;
-            }
-        }
-
-        private async void RetryTimer_Tick(object sender, EventArgs e)
-        {
-            if (_isRetrying)
-            {
-                StopRetryTimer();
-                await UpdateWeatherAsync();
             }
         }
 
         public void Dispose()
         {
-            // unsubscribe from SharedResourceManager
             SharedResourceManager.Instance.Unsubscribe(this);
-
-            // clean up retry timer
-            StopRetryTimer();
         }
     }
 }

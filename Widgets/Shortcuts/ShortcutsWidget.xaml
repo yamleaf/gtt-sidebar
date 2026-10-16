@@ -18,7 +18,7 @@
             <!-- Header -->
             <Grid Grid.Row="0" Margin="0,0,0,4">
                 <TextBlock x:Name="HeaderText"
-                           Text="Shortcuts" 
+                           Text="快捷方式" 
                            Foreground="#333333" 
                            FontSize="10"
                            FontWeight="SemiBold"
@@ -34,7 +34,7 @@
                         Foreground="#666666"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
-                        ToolTip="Add shortcut"
+                        ToolTip="添加快捷方式"
                         Cursor="Hand"
                         Click="AddButton_Click"/>
             </Grid>

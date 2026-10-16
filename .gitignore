@@ -1,4 +1,4 @@
-# Visual Studio and .NET Framework specific
+﻿# Visual Studio and .NET Framework specific
 *.user
 *.suo
 *.cache
@@ -9,12 +9,17 @@
 *.config.backup
 
 # Documentation
-docs/
+# 注意：不要忽略 docs/ 整个目录，否则仓库中的说明文档会被排除。
+# 仅忽略文档构建产物。
+docs/_build/
+docs/.doctrees/
 
 # Build directories
 bin/
 obj/
 packages/
+# 本地编译产物输出目录（仓库只保留源码，编译产物不分发到仓库）
+build/
 
 # Visual Studio temporary files
 *.tmp

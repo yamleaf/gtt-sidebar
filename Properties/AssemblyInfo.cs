@@ -7,11 +7,11 @@ using System.Windows;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("gtt-sidebar")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("DesktopSidebar")]
+[assembly: AssemblyDescription("桌面侧边栏 —— 基于 gtt-sidebar 改造的中文版")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("gtt-sidebar")]
+[assembly: AssemblyProduct("DesktopSidebar")]
 [assembly: AssemblyCopyright("Copyright ©  2025")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

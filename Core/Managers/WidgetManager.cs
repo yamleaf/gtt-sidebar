@@ -62,11 +62,12 @@ namespace gtt_sidebar.Core.Managers
             switch (widgetName)
             {
                 case "Clock": return 1;
-                case "Weather": return 2;
-                case "Stocks": return 5;
-                case "Notes": return 3;
-                case "Shortcuts": return 4;  
-                default: return 99; 
+                case "Calendar": return 2;      // 日历紧跟时钟，日期信息相邻
+                case "Weather": return 3;
+                case "Notes": return 4;
+                case "Shortcuts": return 5;
+                case "System Info": return 6;
+                default: return 99;
             }
         }
 
@@ -76,7 +77,7 @@ namespace gtt_sidebar.Core.Managers
         public async Task InitializeWidgetsAsync()
         {
             var localWidgets = _loadedWidgets.Where(w => w.Name == "Clock" || w.Name == "Notes" || w.Name == "Shortcuts").ToList();
-            var apiWidgets = _loadedWidgets.Where(w => w.Name == "Weather" || w.Name == "Stocks" || w.Name == "System Monitor").ToList();
+            var apiWidgets = _loadedWidgets.Where(w => w.Name == "Calendar" || w.Name == "Weather" || w.Name == "System Info").ToList();
 
             // Initialize local widgets first
             foreach (var widget in localWidgets)

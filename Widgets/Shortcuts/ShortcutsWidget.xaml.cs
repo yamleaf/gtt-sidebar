@@ -69,18 +69,18 @@ namespace gtt_sidebar.Widgets.Shortcuts
         {
             try
             {
-                // Widget width is 125px minus padding (6px on each side) = 113px available
+                // 组件可用宽度（宽度 122px 减去左右内边距）
                 var availableWidth = 113.0;
 
-                // Force 4 icons per row and calculate spacing
-                _iconsPerRow = 4;
+                // 每行图标数量：5 列能让默认 8 个快捷方式排成整齐的两行
+                _iconsPerRow = 5;
+
                 var totalIconWidth = _iconsPerRow * ICON_SIZE;
                 var totalSpacing = availableWidth - totalIconWidth;
                 var spacingPerIcon = Math.Max(2, totalSpacing / (_iconsPerRow + 1)); // +1 for edges
 
-                // Calculate how many shortcuts we can display in 120px height
-                // Header takes ~20px, leaving ~90px for icons
-                var availableHeight = 120.0;
+                // 可用高度：头部约 20px，其余留给图标
+                var availableHeight = 122.0;
                 var iconWithVerticalSpacing = ICON_SIZE + spacingPerIcon;
                 var maxRows = Math.Max(1, (int)Math.Floor(availableHeight / iconWithVerticalSpacing));
 
@@ -92,8 +92,8 @@ namespace gtt_sidebar.Widgets.Shortcuts
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error calculating layout: {ex.Message}");
-                _iconsPerRow = 4; // Fixed at 4
-                _visibleShortcuts = 16; // 4x4 grid
+                _iconsPerRow = 5;
+                _visibleShortcuts = 20; // 5x4 grid
             }
         }
 
@@ -113,7 +113,7 @@ namespace gtt_sidebar.Widgets.Shortcuts
                     // Show empty state
                     var emptyText = new TextBlock
                     {
-                        Text = "No shortcuts\nClick + to add",
+                        Text = "暂无快捷方式\n点击 + 添加",
                         Foreground = new SolidColorBrush(Color.FromRgb(153, 153, 153)),
                         FontSize = 9,
                         TextAlignment = TextAlignment.Center,
@@ -167,7 +167,7 @@ namespace gtt_sidebar.Widgets.Shortcuts
                 // Show error state
                 var errorText = new TextBlock
                 {
-                    Text = "Error loading shortcuts",
+                    Text = "加载快捷方式失败",
                     Foreground = new SolidColorBrush(Color.FromRgb(220, 53, 69)),
                     FontSize = 9,
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -316,7 +316,7 @@ namespace gtt_sidebar.Widgets.Shortcuts
                 var possiblePaths = new[]
                 {
                     Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Core", "Icons", "DefaultIcons", $"{iconName}.png"),
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "gtt-sidebar", "DefaultIcons", $"{iconName}.png"),
+                    Path.Combine(gtt_sidebar.Core.AppPaths.DefaultIconsPath, $"{iconName}.png"),
                     Path.Combine("Core", "Icons", "DefaultIcons", $"{iconName}.png"),
                     Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DefaultIcons", $"{iconName}.png")
                 };
@@ -361,8 +361,8 @@ namespace gtt_sidebar.Widgets.Shortcuts
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error launching shortcut '{shortcut.Label}': {ex.Message}");
-                MessageBox.Show($"Failed to launch '{shortcut.Label}': {ex.Message}",
-                               "Launch Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show($"启动“{shortcut.Label}”失败：{ex.Message}",
+                               "启动失败", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -376,7 +376,7 @@ namespace gtt_sidebar.Widgets.Shortcuts
             // Validate shortcut data first
             if (string.IsNullOrWhiteSpace(shortcut.Path))
             {
-                ShowLaunchError(shortcut.Label, "Shortcut path is empty. Please edit the shortcut in Settings.");
+                ShowLaunchError(shortcut.Label, "快捷方式路径为空，请在设置中修改。");
                 return;
             }
 
@@ -396,7 +396,7 @@ namespace gtt_sidebar.Widgets.Shortcuts
                         var arguments = ExtractArguments(shortcut.Path);
                         if (!File.Exists(executablePath))
                         {
-                            ShowLaunchError(shortcut.Label, $"Executable not found: {Path.GetFileName(executablePath)}");
+                            ShowLaunchError(shortcut.Label, $"未找到可执行文件：{Path.GetFileName(executablePath)}");
                             return;
                         }
                         startInfo.FileName = executablePath;
@@ -408,7 +408,7 @@ namespace gtt_sidebar.Widgets.Shortcuts
                     case ShortcutType.URL:
                         if (!IsValidUrl(shortcut.Path))
                         {
-                            ShowLaunchError(shortcut.Label, "Invalid URL format. Please check the web address.");
+                            ShowLaunchError(shortcut.Label, "网址格式无效，请检查地址。");
                             return;
                         }
                         startInfo.FileName = shortcut.Path;
@@ -418,7 +418,7 @@ namespace gtt_sidebar.Widgets.Shortcuts
                         if (!File.Exists(shortcut.Path))
                         {
                             ShowLaunchError(shortcut.Label,
-                                $"Shortcut file not found: {Path.GetFileName(shortcut.Path)}");
+                                $"未找到快捷方式文件：{Path.GetFileName(shortcut.Path)}");
                             return;
                         }
                         startInfo.FileName = shortcut.Path;
@@ -428,7 +428,7 @@ namespace gtt_sidebar.Widgets.Shortcuts
                         if (!IsValidCommand(shortcut.Path))
                         {
                             ShowLaunchError(shortcut.Label,
-                                $"Windows command '{shortcut.Path}' not recognized.\n\nTry using the full path to the executable instead.");
+                                $"无法识别 Windows 命令“{shortcut.Path}”。\n\n请改用可执行文件的完整路径。");
                             return;
                         }
                         startInfo.FileName = shortcut.Path;
@@ -458,19 +458,19 @@ namespace gtt_sidebar.Widgets.Shortcuts
             catch (FileNotFoundException)
             {
                 ShowLaunchError(shortcut.Label,
-                    $"File not found: {Path.GetFileName(shortcut.Path)}\n\nThe application may have been moved or uninstalled.");
+                    $"未找到文件：{Path.GetFileName(shortcut.Path)}\n\n该程序可能已被移动或卸载。");
                 System.Diagnostics.Debug.WriteLine($"File not found: {shortcut.Path}");
             }
             catch (UnauthorizedAccessException)
             {
                 ShowLaunchError(shortcut.Label,
-                    "Access denied. You don't have permission to run this application.\n\nTry running as administrator or check file permissions.");
+                    "访问被拒绝，你没有运行该程序的权限。\n\n请尝试以管理员身份运行，或检查文件权限。");
                 System.Diagnostics.Debug.WriteLine($"Access denied launching: {shortcut.Path}");
             }
             catch (Exception ex)
             {
                 ShowLaunchError(shortcut.Label,
-                    $"Unexpected error: {ex.Message}\n\nPlease check the shortcut path in Settings.");
+                    $"发生异常：{ex.Message}\n\n请在设置中检查快捷方式路径。");
                 System.Diagnostics.Debug.WriteLine($"Unexpected error launching {shortcut.Label}: {ex.Message}");
             }
         }
@@ -588,25 +588,25 @@ namespace gtt_sidebar.Widgets.Shortcuts
             switch (errorCode)
             {
                 case 2: // File not found
-                    return $"Application not found: {Path.GetFileName(shortcut.Path)}\n\nThe program may have been moved, renamed, or uninstalled.";
+                    return $"未找到程序：{Path.GetFileName(shortcut.Path)}\n\n该程序可能已被移动、重命名或卸载。";
 
                 case 3: // Path not found
-                    return $"Path not found: {Path.GetDirectoryName(shortcut.Path)}\n\nThe folder containing this application no longer exists.";
+                    return $"未找到路径：{Path.GetDirectoryName(shortcut.Path)}\n\n该程序所在的文件夹已不存在。";
 
                 case 5: // Access denied
-                    return "Access denied. You don't have permission to run this application.\n\nTry running as administrator.";
+                    return "访问被拒绝，你没有运行该程序的权限。\n\n请尝试以管理员身份运行。";
 
                 case 8: // Not enough memory
-                    return "Not enough memory to launch this application.\n\nTry closing other programs and try again.";
+                    return "内存不足，无法启动该程序。\n\n请关闭其他程序后重试。";
 
                 case 193: // Not a valid Win32 application
-                    return $"{Path.GetFileName(shortcut.Path)} is not a valid Windows application.\n\nThe file may be corrupted or incompatible.";
+                    return $"{Path.GetFileName(shortcut.Path)} 不是有效的 Windows 应用程序。\n\n文件可能已损坏或不兼容。";
 
                 case 1155: // No application associated
-                    return $"No application is associated with this file type.\n\nWindows doesn't know how to open {Path.GetExtension(shortcut.Path)} files.";
+                    return $"该文件类型没有关联的应用程序。\n\n系统不知道如何打开 {Path.GetExtension(shortcut.Path)} 文件。";
 
                 default:
-                    return $"Windows error {errorCode}: Unable to launch {shortcut.Label}\n\nPlease check the shortcut path in Settings.";
+                    return $"Windows 错误 {errorCode}：无法启动 {shortcut.Label}\n\n请在设置中检查快捷方式路径。";
             }
         }
 
@@ -615,9 +615,9 @@ namespace gtt_sidebar.Widgets.Shortcuts
         /// </summary>
         private void ShowLaunchError(string shortcutName, string errorMessage)
         {
-            var fullMessage = $"Failed to launch '{shortcutName}'\n\n{errorMessage}";
+            var fullMessage = $"启动“{shortcutName}”失败\n\n{errorMessage}";
 
-            MessageBox.Show(fullMessage, "Shortcut Launch Error",
+            MessageBox.Show(fullMessage, "快捷方式启动失败",
                            MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
@@ -630,7 +630,7 @@ namespace gtt_sidebar.Widgets.Shortcuts
             {
                 if (_shortcutsData?.Shortcuts == null)
                 {
-                    HeaderText.Text = "Shortcuts";
+                    HeaderText.Text = "快捷方式";
                     return;
                 }
 
@@ -639,17 +639,17 @@ namespace gtt_sidebar.Widgets.Shortcuts
 
                 if (hiddenCount > 0)
                 {
-                    HeaderText.Text = $"Shortcuts ({hiddenCount} hidden)";
+                    HeaderText.Text = $"快捷方式（{hiddenCount} 个已隐藏）";
                 }
                 else
                 {
-                    HeaderText.Text = "Shortcuts";
+                    HeaderText.Text = "快捷方式";
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error updating header text: {ex.Message}");
-                HeaderText.Text = "Shortcuts";
+                HeaderText.Text = "快捷方式";
             }
         }
 

@@ -407,8 +407,8 @@ namespace gtt_sidebar.Widgets.Notes
 
             // ADD THIS CONFIRMATION DIALOG:
             var result = System.Windows.MessageBox.Show(
-                "Are you sure you want to delete this note?",
-                "Confirm Delete",
+                "确定要删除这条备注吗？",
+                "确认删除",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 

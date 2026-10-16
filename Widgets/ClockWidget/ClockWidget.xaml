@@ -16,7 +16,7 @@
                        FontWeight="Bold"
                        HorizontalAlignment="Center"/>
             <TextBlock x:Name="DateDisplay" 
-                       Text="January 1, 2025" 
+                       Text="2025年1月1日 星期三" 
                        Foreground="#666666" 
                        FontSize="9"
                        HorizontalAlignment="Center"/>

@@ -11,9 +11,7 @@ namespace gtt_sidebar.Core.Settings
     /// </summary>
     public static class SettingsStorage
     {
-        private static readonly string _appDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "gtt-sidebar");
+        private static readonly string _appDataPath = gtt_sidebar.Core.AppPaths.AppDataPath;
 
         private static readonly string _settingsFilePath = Path.Combine(_appDataPath, "settings.json");
 

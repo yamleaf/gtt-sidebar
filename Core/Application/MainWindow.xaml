@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Icon="/gtt-sidebar-icon.ico"
-        Title="Sidebar"
+        Title="桌面侧边栏"
         Width="122"
         WindowStyle="None"
         ResizeMode="NoResize"
@@ -20,12 +20,16 @@
             <!-- Footer -->
         </Grid.RowDefinitions>
 
-        <!-- Widgets Container -->
-        <StackPanel x:Name="WidgetContainer" 
-                    Grid.Row="0"
-                    Orientation="Vertical"
-                    Margin="3">
-        </StackPanel>
+        <!-- Widgets Container（可滚动：组件较多或屏幕较小时不会丢失内容） -->
+        <ScrollViewer Grid.Row="0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="0">
+            <StackPanel x:Name="WidgetContainer"
+                        Orientation="Vertical"
+                        Margin="3">
+            </StackPanel>
+        </ScrollViewer>
 
         <!-- Footer -->
         <Border Grid.Row="1" 
@@ -42,7 +46,7 @@
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
                     Margin="0,0,4,0"
-                    ToolTip="Settings"
+                    ToolTip="设置"
                     Cursor="Hand"
                     Click="SettingsButton_Click"/>
         </Border>

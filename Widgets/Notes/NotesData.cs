@@ -82,7 +82,7 @@ namespace gtt_sidebar.Widgets.Notes
         {
             if (Tabs.Count == 0)
             {
-                EnsureDefaultTab("Hi. This is your notepad. Markdown accepted.");
+                EnsureDefaultTab("你好，这里是你的记事本。支持 Markdown 语法。");
             }
 
             if (LastActiveTabIndex >= 0 && LastActiveTabIndex < Tabs.Count)
@@ -106,7 +106,7 @@ namespace gtt_sidebar.Widgets.Notes
             }
 
             // Emergency fallback - this should never happen
-            EnsureDefaultTab("Hi. This is your notepad.");
+            EnsureDefaultTab("你好，这里是你的记事本。");
             LastActiveTabIndex = 0;
             return Tabs[0];
         }
@@ -173,7 +173,7 @@ namespace gtt_sidebar.Widgets.Notes
             if (Tabs.Count == 0)
             {
                 System.Diagnostics.Debug.WriteLine("RemoveTab: No tabs left! Re-creating default tab.");
-                EnsureDefaultTab("Hi. This is your notepad.");
+                EnsureDefaultTab("你好，这里是你的记事本。");
                 LastActiveTabIndex = 0;
             }
 
@@ -222,7 +222,7 @@ namespace gtt_sidebar.Widgets.Notes
         public string GetPreview(int maxLength = 250)
         {
             if (string.IsNullOrWhiteSpace(Content))
-                return "Click to add notes...";
+                return "点击此处开始记录…";
 
             var preview = Content.Trim();
 

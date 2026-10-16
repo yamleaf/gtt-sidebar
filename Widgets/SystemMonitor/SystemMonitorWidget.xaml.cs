@@ -269,7 +269,7 @@ namespace gtt_sidebar.Widgets.SystemMonitor
                 }
                 else
                 {
-                    CpuValue.Text = "N/A";
+                    CpuValue.Text = "不可用";
                 }
 
                 // update RAM usage (%)
@@ -279,7 +279,7 @@ namespace gtt_sidebar.Widgets.SystemMonitor
                 }
                 else
                 {
-                    RamValue.Text = "N/A";
+                    RamValue.Text = "不可用";
                 }
 
                 // update Ping latency (ms)
@@ -289,7 +289,7 @@ namespace gtt_sidebar.Widgets.SystemMonitor
                 }
                 else
                 {
-                    PingValue.Text = "N/A";
+                    PingValue.Text = "不可用";
                 }
 
                 // update tooltips with real averages
@@ -300,20 +300,20 @@ namespace gtt_sidebar.Widgets.SystemMonitor
 
                     if (cpu5Min >= 0 && cpu1Hour >= 0)
                     {
-                        CpuValue.ToolTip = $"Current: {_currentCpu:F1}%\nAvg 5m: {cpu5Min:F1}%\nAvg 1h: {cpu1Hour:F1}%";
+                        CpuValue.ToolTip = $"当前：{_currentCpu:F1}%\n5分钟均值：{cpu5Min:F1}%\n1小时均值：{cpu1Hour:F1}%";
                     }
                     else if (cpu5Min >= 0)
                     {
-                        CpuValue.ToolTip = $"Current: {_currentCpu:F1}%\nAvg 5m: {cpu5Min:F1}%\nAvg 1h: (collecting data...)";
+                        CpuValue.ToolTip = $"当前：{_currentCpu:F1}%\n5分钟均值：{cpu5Min:F1}%\n1小时均值：（正在采集数据…）";
                     }
                     else
                     {
-                        CpuValue.ToolTip = $"Current: {_currentCpu:F1}%\nAvg 5m: (collecting data...)\nAvg 1h: (collecting data...)";
+                        CpuValue.ToolTip = $"当前：{_currentCpu:F1}%\n5分钟均值：（正在采集数据…）\n1小时均值：（正在采集数据…）";
                     }
                 }
                 else
                 {
-                    CpuValue.ToolTip = "CPU monitoring unavailable";
+                    CpuValue.ToolTip = "CPU 监控不可用";
                 }
 
                 if (_currentRam >= 0)
@@ -323,20 +323,20 @@ namespace gtt_sidebar.Widgets.SystemMonitor
 
                     if (ram5Min >= 0 && ram1Hour >= 0)
                     {
-                        RamValue.ToolTip = $"Current: {_currentRam:F1}%\nAvg 5m: {ram5Min:F1}%\nAvg 1h: {ram1Hour:F1}%";
+                        RamValue.ToolTip = $"当前：{_currentRam:F1}%\n5分钟均值：{ram5Min:F1}%\n1小时均值：{ram1Hour:F1}%";
                     }
                     else if (ram5Min >= 0)
                     {
-                        RamValue.ToolTip = $"Current: {_currentRam:F1}%\nAvg 5m: {ram5Min:F1}%\nAvg 1h: (collecting data...)";
+                        RamValue.ToolTip = $"当前：{_currentRam:F1}%\n5分钟均值：{ram5Min:F1}%\n1小时均值：（正在采集数据…）";
                     }
                     else
                     {
-                        RamValue.ToolTip = $"Current: {_currentRam:F1}%\nAvg 5m: (collecting data...)\nAvg 1h: (collecting data...)";
+                        RamValue.ToolTip = $"当前：{_currentRam:F1}%\n5分钟均值：（正在采集数据…）\n1小时均值：（正在采集数据…）";
                     }
                 }
                 else
                 {
-                    RamValue.ToolTip = "RAM monitoring unavailable";
+                    RamValue.ToolTip = "内存监控不可用";
                 }
 
                 if (_currentPing >= 0)
@@ -346,20 +346,20 @@ namespace gtt_sidebar.Widgets.SystemMonitor
 
                     if (ping5Min >= 0 && ping1Hour >= 0)
                     {
-                        PingValue.ToolTip = $"Current: {_currentPing:F1}ms\nAvg 5m: {ping5Min:F1}ms\nAvg 1h: {ping1Hour:F1}ms";
+                        PingValue.ToolTip = $"当前：{_currentPing:F1}ms\n5分钟均值：{ping5Min:F1}ms\n1小时均值：{ping1Hour:F1}ms";
                     }
                     else if (ping5Min >= 0)
                     {
-                        PingValue.ToolTip = $"Current: {_currentPing:F1}ms\nAvg 5m: {ping5Min:F1}ms\nAvg 1h: (collecting data...)";
+                        PingValue.ToolTip = $"当前：{_currentPing:F1}ms\n5分钟均值：{ping5Min:F1}ms\n1小时均值：（正在采集数据…）";
                     }
                     else
                     {
-                        PingValue.ToolTip = $"Current: {_currentPing:F1}ms\nAvg 5m: (collecting data...)\nAvg 1h: (collecting data...)";
+                        PingValue.ToolTip = $"当前：{_currentPing:F1}ms\n5分钟均值：（正在采集数据…）\n1小时均值：（正在采集数据…）";
                     }
                 }
                 else
                 {
-                    PingValue.ToolTip = "Network ping unavailable";
+                    PingValue.ToolTip = "网络延迟不可用";
                 }
 
                 // color coding using settings-based thresholds
