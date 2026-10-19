@@ -34,12 +34,18 @@ namespace gtt_sidebar.Core.Managers
         private bool _pointerInside;             // 上一轮鼠标是否在窗口内
         private bool _pointerInEdgeZone;         // 上一轮鼠标是否处于边缘感应区
         private DateTime _shownAt;               // 本次滑回到位的时刻（用于宽限期）
+        private readonly DateTime _startedAt;    // 管理器创建时刻（用于启动宽限期）
 
         // 边缘感应区宽度（像素）：鼠标进入该区域即视为“想唤回/正在操作边缘”
         private const double EDGE_ZONE_PX = 2;
 
         // 滑回到位后的宽限期（毫秒）：这段时间内禁止隐藏，留出时间让鼠标移进窗口
         private const int SHOWN_GRACE_MS = 600;
+
+        // 启动宽限期（毫秒）：程序启动/系统解锁后的这段时间内一律不隐藏。
+        // 因为开机自启时窗口从一开始就是显示状态，尚未发生任何用户交互，
+        // 此时若立刻按“指针不在窗口内”判定隐藏，用户会看到侧边栏自己收起来。
+        private const int STARTUP_GRACE_MS = 3000;
 
         // 边缘感应区在垂直方向上的留白比例（相对屏幕高度），取自设置：
         // 顶部留白避开窗口右上角的关闭/最小化按钮，
@@ -81,7 +87,15 @@ namespace gtt_sidebar.Core.Managers
         {
             _window = window;
             _settings = SettingsStorage.LoadSettings().Window;
-            _pointerLeftAt = DateTime.Now;
+
+            // 关键：启动时窗口本来就是“已显示”状态，不会走 ShowSidebar()，
+            // 因此这两个时间戳必须在构造时初始化，否则会停留在 DateTime.MinValue，
+            // 导致宽限期判断 (Now - _shownAt) 永远是个极大值 → 宽限期永久失效。
+            // 表现为：开机后侧边栏一直显示（靠 IsActive 兜住），一旦鼠标进入再离开就立刻隐藏。
+            var now = DateTime.Now;
+            _pointerLeftAt = now;
+            _shownAt = now;
+            _startedAt = now;
 
             // 单一决策计时器（120ms 一次，开销极低）：
             // 统一负责“该隐藏 / 该唤回”的全部判断，避免多个计时器语义重叠
@@ -302,6 +316,16 @@ namespace gtt_sidebar.Core.Managers
             // 滑回到位后的宽限期：留出时间让用户把鼠标移进窗口
             var sinceShownMs = (DateTime.Now - _shownAt).TotalMilliseconds;
             if (sinceShownMs < SHOWN_GRACE_MS) return;
+
+            // 启动宽限期：刚启动/刚解锁时窗口本就在屏幕上且无任何交互，
+            // 此时不应立刻隐藏（否则用户会看到侧边栏自己收起来）
+            var sinceStartMs = (DateTime.Now - _startedAt).TotalMilliseconds;
+            if (sinceStartMs < STARTUP_GRACE_MS)
+            {
+                // 宽限期内持续刷新计时基准，让宽限期结束后重新走完整的隐藏延迟
+                _pointerLeftAt = DateTime.Now;
+                return;
+            }
 
             // 离开边缘/窗口后，按设定延迟倒计时
             var idleMs = (DateTime.Now - _pointerLeftAt).TotalMilliseconds;
