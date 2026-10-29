@@ -49,6 +49,10 @@ namespace gtt_sidebar.Widgets.SystemInfo
 
         public new string Name => "System Info";
 
+        public string DisplayName => "系统信息";
+
+        public string Description => "CPU、内存、延迟、磁盘与网络状态";
+
         public SystemInfoWidget()
         {
             InitializeComponent();

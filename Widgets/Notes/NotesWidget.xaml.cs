@@ -16,6 +16,10 @@ namespace gtt_sidebar.Widgets.Notes
 
         public new string Name => "Notes";
 
+        public string DisplayName => "备注";
+
+        public string Description => "多标签便签，点击展开编辑";
+
         public NotesWidget()
         {
             InitializeComponent();

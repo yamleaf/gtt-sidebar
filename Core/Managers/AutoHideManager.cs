@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using gtt_sidebar.Core.Application;
 using gtt_sidebar.Core.Settings;
 
 namespace gtt_sidebar.Core.Managers
@@ -26,7 +27,7 @@ namespace gtt_sidebar.Core.Managers
         private DispatcherTimer _watchTimer;     // 唯一的决策计时器：判断隐藏/唤回
         private WindowSettings _settings;
 
-        private bool _isHidden;                  // 当前是否处于隐藏（滑出屏幕）状态
+        private bool _isHidden;                  // 当前是否处于隐藏（滑出屏幕 / 已收缩为悬浮球）状态
         private bool _isAnimating;               // 动画进行中，避免互相打断
         private double _shownLeft;               // 显示状态下的 Left
         private int _suppressCount;              // 抑制计数（弹窗/设置窗口打开期间不隐藏）
@@ -35,6 +36,18 @@ namespace gtt_sidebar.Core.Managers
         private bool _pointerInEdgeZone;         // 上一轮鼠标是否处于边缘感应区
         private DateTime _shownAt;               // 本次滑回到位的时刻（用于宽限期）
         private readonly DateTime _startedAt;    // 管理器创建时刻（用于启动宽限期）
+
+        // 悬浮球模式相关
+        private FloatingBallWindow _ball;
+        private Action _onBallSettingsRequested;
+        private Action _onBallExitRequested;
+        private bool _ballExpanding;             // 防止悬停展开被连续触发
+        private DateTime _lastCollapsedAt = DateTime.MinValue;   // 上次收起时刻（用于展开防抖）
+
+        // 悬浮球收起后再次展开的防抖窗口（毫秒）：
+        // 球体出现的位置恰好是鼠标所在处，若不做防抖会立刻又被 MouseEnter 展开，
+        // 形成"收起→立刻展开"的死循环。
+        private const int COLLAPSE_DEBOUNCE_MS = 400;
 
         // 边缘感应区宽度（像素）：鼠标进入该区域即视为“想唤回/正在操作边缘”
         private const double EDGE_ZONE_PX = 2;
@@ -60,6 +73,11 @@ namespace gtt_sidebar.Core.Managers
         public bool IsHidden => _isHidden;
 
         /// <summary>
+        /// 隐藏状态变化通知（true=已隐藏）
+        /// </summary>
+        public event Action<bool> HiddenStateChanged;
+
+        /// <summary>
         /// 临时抑制自动隐藏（例如备注弹窗、设置窗口打开期间），支持嵌套
         /// </summary>
         public void SuppressAutoHide()
@@ -79,9 +97,147 @@ namespace gtt_sidebar.Core.Managers
         }
 
         /// <summary>
-        /// 隐藏状态变化通知（true=已隐藏）
+        /// 手动收起（托盘"隐藏"、点击关闭按钮等）。
+        ///
+        /// 与 HideSidebar 的差别：这里不受 AutoHideOnFocusLost 开关限制
+        /// （用户显式要求隐藏时必须生效），且悬浮球模式下会正确弹出球体。
         /// </summary>
-        public event Action<bool> HiddenStateChanged;
+        public void CollapseManually()
+        {
+            if (_isHidden) return;
+
+            _shownLeft = _window.Left;
+            _isHidden = true;
+            _lastCollapsedAt = DateTime.Now;
+
+            if (UseBall)
+            {
+                ShowBallOnly();
+            }
+            else
+            {
+                _window.Hide();
+                HiddenStateChanged?.Invoke(true);
+            }
+        }
+
+        /// <summary>
+        /// 鼠标是否处于「悬浮球」的感应范围内（用于收起后判断是否需要展开）
+        /// </summary>
+        private bool IsPointerOnBall()
+        {
+            if (_ball == null || !_ball.IsVisible) return false;
+
+            var mouse = GetCursorPosition();
+            return mouse.X >= _ball.Left && mouse.X <= _ball.Left + _ball.Width &&
+                   mouse.Y >= _ball.Top && mouse.Y <= _ball.Top + _ball.Height;
+        }
+
+        /// <summary>
+        /// 是否启用悬浮球收起方式
+        /// </summary>
+        private bool UseBall => _settings != null && _settings.UseFloatingBall;
+
+        /// <summary>
+        /// 创建/更新悬浮球窗口（仅在使用悬浮球模式时存在）
+        /// </summary>
+        private void EnsureBallWindow()
+        {
+            if (!UseBall)
+            {
+                DestroyBallWindow();
+                return;
+            }
+
+            if (_ball != null) return;
+
+            _ball = new FloatingBallWindow();
+            _ball.ExpandRequested += OnBallExpandRequested;
+            _ball.PositionChanged += OnBallPositionChanged;
+            _ball.SettingsRequested += () =>
+            {
+                _onBallSettingsRequested?.Invoke();
+            };
+            _ball.ExitRequested += () =>
+            {
+                _onBallExitRequested?.Invoke();
+            };
+            _ball.ApplySettings(_settings);
+
+            // 主窗口关闭时一并关闭，避免残留孤儿窗口
+            _window.Closed += (s, e) => DestroyBallWindow();
+        }
+
+        private void DestroyBallWindow()
+        {
+            if (_ball == null) return;
+
+            try
+            {
+                _ball.ExpandRequested -= OnBallExpandRequested;
+                _ball.PositionChanged -= OnBallPositionChanged;
+                _ball.Hide();
+                _ball.Close();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"AutoHide: 关闭悬浮球失败 - {ex.Message}");
+            }
+            finally
+            {
+                _ball = null;
+            }
+        }
+
+        /// <summary>
+        /// 悬浮球被鼠标进入或点击：展开侧边栏
+        /// </summary>
+        private void OnBallExpandRequested()
+        {
+            if (_ballExpanding) return;
+
+            // 防抖：刚收起就展开会形成死循环（球出现在鼠标位置 → 立刻触发 MouseEnter）
+            if ((DateTime.Now - _lastCollapsedAt).TotalMilliseconds < COLLAPSE_DEBOUNCE_MS) return;
+
+            _ballExpanding = true;
+            try
+            {
+                ShowSidebar(true);
+            }
+            finally
+            {
+                _ballExpanding = false;
+            }
+        }
+
+        /// <summary>
+        /// 用户拖动了悬浮球，持久化位置
+        /// </summary>
+        private void OnBallPositionChanged(double top)
+        {
+            try
+            {
+                _settings.FloatingBallY = top;
+
+                // 直接写回 settings.json（复用现有存储链路）
+                var all = SettingsStorage.LoadSettings();
+                all.Window.FloatingBallY = top;
+                SharedResourceManager.Instance.UpdateSettings(all);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"AutoHide: 保存悬浮球位置失败 - {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 注册悬浮球右键菜单的回调（设置 / 退出由 MainWindow 提供）
+        /// </summary>
+        public void SetBallCallbacks(Action onSettings, Action onExit)
+        {
+            _onBallSettingsRequested = onSettings;
+            _onBallExitRequested = onExit;
+        }
 
         public AutoHideManager(Window window)
         {
@@ -110,12 +266,47 @@ namespace gtt_sidebar.Core.Managers
         public void ApplySettings(SettingsData settings)
         {
             if (settings?.Window == null) return;
+
+            var ballModeChanged = _settings != null &&
+                                  _settings.UseFloatingBall != settings.Window.UseFloatingBall;
+
             _settings = settings.Window;
 
             if (!_settings.AutoHideOnFocusLost)
             {
                 // 关闭特性时立即恢复显示
                 if (_isHidden && !_isAnimating) ShowSidebar(false);
+                DestroyBallWindow();
+                return;
+            }
+
+            if (ballModeChanged)
+            {
+                if (_settings.UseFloatingBall)
+                {
+                    // 切到悬浮球：若当前是贴边隐藏状态，转成真正的 Hide + 显示球
+                    if (_isHidden)
+                    {
+                        ShowSidebar(false);
+                        HideSidebar();
+                    }
+                }
+                else
+                {
+                    // 切回贴边模式：关掉球，并按需重新贴边隐藏
+                    DestroyBallWindow();
+                    if (_isHidden)
+                    {
+                        ShowSidebar(false);
+                        HideSidebar();
+                    }
+                }
+            }
+            else if (UseBall)
+            {
+                // 设置变化可能改动了球尺寸/位置，实时同步
+                EnsureBallWindow();
+                _ball?.ApplySettings(_settings);
             }
         }
 
@@ -165,11 +356,22 @@ namespace gtt_sidebar.Core.Managers
             _isHidden = false;
             _isAnimating = false;
 
+            // 悬浮球模式：收起时窗口是 Hide() 掉的，必须先 Show 出来
+            var wasHidByBall = UseBall && !_window.IsVisible;
+            if (wasHidByBall)
+            {
+                // 收起球体放在展开之前，避免球体压在侧边栏上方
+                _ball?.Hide();
+
+                _window.Show();
+                _window.WindowState = WindowState.Normal;
+            }
+
             // 唤回后重置计时（指针状态在窗口复位后于动画回调中重新计算）
             _pointerLeftAt = DateTime.Now;
 
             var targetLeft = _shownLeft;
-            if (animate)
+            if (animate && !wasHidByBall)
             {
                 AnimateLeft(targetLeft, () =>
                 {
@@ -197,7 +399,13 @@ namespace gtt_sidebar.Core.Managers
         }
 
         /// <summary>
-        /// 立即隐藏侧边栏（滑出屏幕）
+        /// 立即隐藏侧边栏。
+        ///
+        /// 两种收起方式：
+        /// - 悬浮球模式（默认）：主窗口直接 Hide()，同时弹出悬浮球。
+        ///   这比"滑出屏幕"更彻底——不留任何遮挡，也不会因为窗口还在屏幕上
+        ///   而参与命中测试影响其它程序。
+        /// - 传统模式：滑出屏幕，只保留 Peek 像素供边缘感应。
         /// </summary>
         public void HideSidebar()
         {
@@ -208,7 +416,15 @@ namespace gtt_sidebar.Core.Managers
             _shownLeft = _window.Left;
 
             _isHidden = true;
+            _lastCollapsedAt = DateTime.Now;
 
+            if (UseBall)
+            {
+                ShowBallOnly();
+                return;
+            }
+
+            // 传统模式：滑出屏幕
             var targetLeft = GetHiddenLeft();
             AnimateLeft(targetLeft, () =>
             {
@@ -220,6 +436,26 @@ namespace gtt_sidebar.Core.Managers
                 _pointerInEdgeZone = false;
                 HiddenStateChanged?.Invoke(true);
             });
+        }
+
+        /// <summary>
+        /// 悬浮球模式下的收起动作：隐藏主窗口 + 显示球。
+        /// 单独抽出来，供主窗口的 HideWindow / OnClosing 复用，
+        /// 避免绕过 HideSidebar 时漏掉 _lastCollapsedAt 防抖标记。
+        /// </summary>
+        private void ShowBallOnly()
+        {
+            // 刷新球位置（设置可能刚改过）后显示
+            EnsureBallWindow();
+            _ball?.ApplySettings(_settings);
+            _ball?.Show();
+
+            _isAnimating = false;
+            _window.Hide();
+
+            // 隐藏后解除边缘区标记，避免残留状态影响下次展开
+            _pointerInEdgeZone = false;
+            HiddenStateChanged?.Invoke(true);
         }
 
         /// <summary>
@@ -263,6 +499,14 @@ namespace gtt_sidebar.Core.Managers
         {
             // 动画进行中不做决策，等动画结束后的下一轮再说
             if (_isAnimating) return;
+
+            // 悬浮球模式：收起/展开由球体自身的 MouseEnter / Click 驱动，
+            // 这里只负责"何时收起"，不做边缘区唤回（避免与球体事件语义重叠）
+            if (UseBall)
+            {
+                WatchTick_BallMode();
+                return;
+            }
 
             var pointerInside = IsPointerInsideWindow();
             if (pointerInside != _pointerInside)
@@ -328,6 +572,64 @@ namespace gtt_sidebar.Core.Managers
             }
 
             // 离开边缘/窗口后，按设定延迟倒计时
+            var idleMs = (DateTime.Now - _pointerLeftAt).TotalMilliseconds;
+            if (idleMs >= Math.Max(0, _settings.AutoHideDelayMs))
+            {
+                HideSidebar();
+            }
+        }
+
+        /// <summary>
+        /// 悬浮球模式的收起判定。
+        ///
+        /// 与贴边模式的区别：
+        /// - 收起后主窗口是 Hide() 的，不存在"边缘感应区"概念，唤回完全交给球体；
+        /// - 这里只需判断侧边栏展开时「鼠标是否还在窗口内 / 窗口是否仍有焦点」，
+        ///   都不满足时才按延迟倒计时收起。
+        /// </summary>
+        private void WatchTick_BallMode()
+        {
+            // 已收起：只维护球的存活，不做任何展开动作
+            if (_isHidden)
+            {
+                EnsureBallWindow();
+                return;
+            }
+
+            var pointerInside = IsPointerInsideWindow();
+
+            // 指针刚刚离开窗口的那一刻必须刷新计时基准，
+            // 否则倒计时会一直沿用"展开那一刻"的时间戳，
+            // 导致鼠标离开后立刻就被收起（甚至看起来像没进入延迟期）。
+            if (_pointerInside && !pointerInside)
+            {
+                _pointerLeftAt = DateTime.Now;
+            }
+            _pointerInside = pointerInside;
+
+            // 鼠标还在侧边栏上 → 正在使用
+            if (pointerInside) return;
+
+            if (!_settings.AutoHideOnFocusLost) return;
+            if (_suppressCount > 0) return;                       // 设置窗口/弹窗打开期间不收起
+            if (_window.WindowState != WindowState.Normal) return;
+            if (!_window.IsVisible) return;
+
+            // 展开后的宽限期：留出时间让用户把鼠标移进窗口
+            var sinceShownMs = (DateTime.Now - _shownAt).TotalMilliseconds;
+            if (sinceShownMs < SHOWN_GRACE_MS) return;
+
+            var sinceStartMs = (DateTime.Now - _startedAt).TotalMilliseconds;
+            if (sinceStartMs < STARTUP_GRACE_MS)
+            {
+                _pointerLeftAt = DateTime.Now;
+                return;
+            }
+
+            // 注意：悬浮球模式下**不再要求窗口失焦**。
+            // 侧边栏是 Topmost 且不在任务栏，本身就经常长期保持 IsActive，
+            // 若把"失焦"作为前提，收起几乎永远不会发生。
+            // 用户离开侧边栏（指针移出）才是唯一可靠的收起信号。
             var idleMs = (DateTime.Now - _pointerLeftAt).TotalMilliseconds;
             if (idleMs >= Math.Max(0, _settings.AutoHideDelayMs))
             {
@@ -440,6 +742,8 @@ namespace gtt_sidebar.Core.Managers
                 _watchTimer.Tick -= WatchTimer_Tick;
                 _watchTimer = null;
             }
+
+            DestroyBallWindow();
         }
 
         [DllImport("user32.dll")]

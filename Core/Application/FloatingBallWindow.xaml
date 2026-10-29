@@ -1,0 +1,78 @@
+<Window x:Class="gtt_sidebar.Core.Application.FloatingBallWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="桌面侧边栏"
+        Width="26" Height="72"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        Topmost="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="Manual"
+        MouseLeftButtonDown="Ball_MouseLeftButtonDown"
+        MouseLeftButtonUp="Ball_MouseLeftButtonUp"
+        MouseRightButtonUp="Ball_MouseRightButtonUp">
+
+    <!-- 注意：Grid.Background 必须显式设为 Transparent。
+         在 AllowsTransparency=True 的窗口里，Background=null 的区域不参与命中测试，
+         会导致 Window 的 MouseEnter 永远不触发（实测踩过）。-->
+    <Grid Background="Transparent">
+
+        <!-- 胶囊本体：四角全圆（不再与屏幕边缘平齐，所以两端都收圆）。
+             四周 Margin 留出空间给投影扩散，避免被窗口边界裁切。
+
+             描边用三色渐变（蓝 → 青 → 靛）绕胶囊一圈，是卡片的主要视觉标识。 -->
+        <Border x:Name="PillBody"
+                Margin="5,5,5,7"
+                BorderThickness="1.2"
+                CornerRadius="10">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0.2">
+                    <GradientStop Color="#FFFFFF" Offset="0"/>
+                    <GradientStop Color="#FAFBFD" Offset="0.55"/>
+                    <GradientStop Color="#EEF1F6" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <Border.BorderBrush>
+                <!-- 彩色描边：斜向三色渐变，绕胶囊一圈 -->
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#4A90E2" Offset="0"/>
+                    <GradientStop Color="#3DD8C0" Offset="0.45"/>
+                    <GradientStop Color="#9B6BF5" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.BorderBrush>
+            <Border.Effect>
+                <DropShadowEffect Color="#4A90E2" BlurRadius="12" ShadowDepth="2"
+                                  Direction="270" Opacity="0.35"/>
+            </Border.Effect>
+
+            <!-- 抓握纹路：三条短横线，居中显示 -->
+            <Canvas x:Name="BallIcon"
+                    Width="8" Height="20"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    IsHitTestVisible="False">
+                <Border Canvas.Left="0" Canvas.Top="0"
+                        Width="8" Height="2" CornerRadius="1" Background="#A2AAB8"/>
+                <Border Canvas.Left="0" Canvas.Top="9"
+                        Width="8" Height="2" CornerRadius="1" Background="#4E5768"/>
+                <Border Canvas.Left="0" Canvas.Top="18"
+                        Width="8" Height="2" CornerRadius="1" Background="#A2AAB8"/>
+            </Canvas>
+        </Border>
+
+        <!-- 悬停/拖动时的高亮描边（默认透明，动画淡入），与本体同形状 -->
+        <Border x:Name="HoverRing"
+                Margin="4"
+                BorderThickness="1.5"
+                BorderBrush="#4A90E2"
+                CornerRadius="10"
+                Opacity="0"
+                IsHitTestVisible="False">
+            <Border.Effect>
+                <DropShadowEffect Color="#4A90E2" BlurRadius="10" ShadowDepth="0" Opacity="0.6"/>
+            </Border.Effect>
+        </Border>
+    </Grid>
+</Window>

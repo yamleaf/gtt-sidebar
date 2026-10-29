@@ -37,6 +37,10 @@ namespace gtt_sidebar.Widgets.CalendarWidget
 
         public new string Name => "Calendar";
 
+        public string DisplayName => "日历";
+
+        public string Description => "月历视图，含节假日与倒计时";
+
         public CalendarWidget()
         {
             InitializeComponent();
@@ -147,7 +151,7 @@ namespace gtt_sidebar.Widgets.CalendarWidget
                 var firstOfMonth = new DateTime(today.Year, today.Month, 1);
 
                 MonthTitleText.Text = $"{today.Year}年{today.Month}月";
-                TodayTagText.Text = $"今天 {today.Day} 日";
+                TodayTagText.Text = "今天";
 
                 DaysGrid.Children.Clear();
 

@@ -25,6 +25,10 @@ namespace gtt_sidebar.Widgets.WeatherWidget
         private const int MAX_IMMEDIATE_RETRIES = 3;
 
         public new string Name => "Weather";
+
+        public string DisplayName => "天气";
+
+        public string Description => "实时天气与三日预报";
         public TimeSpan UpdateInterval => TimeSpan.FromMinutes(30);
 
         public WeatherWidget()

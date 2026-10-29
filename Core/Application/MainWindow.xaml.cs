@@ -31,6 +31,10 @@ namespace gtt_sidebar.Core.Application
 
             // 自动隐藏管理器必须先于 ApplySettings 创建，否则无法记录显示位置
             _autoHide = new AutoHideManager(this);
+            // 悬浮球右键菜单需要回调到主窗口
+            _autoHide.SetBallCallbacks(
+                () => SettingsButton_Click(null, null),
+                () => ExitApplication());
             ApplySettings(_currentSettings);
             _autoHide.ApplySettings(_currentSettings);
 
@@ -168,15 +172,25 @@ namespace gtt_sidebar.Core.Application
         {
             this.Show();
             this.WindowState = WindowState.Normal;
-            // 唤回时若处于贴边隐藏状态，先滑回原位
+            // 唤回时若处于收起状态（悬浮球或贴边隐藏），统一走 AutoHideManager 恢复
             _autoHide?.ShowSidebar(true);
             this.Activate();
         }
 
         private void HideWindow()
         {
-            _autoHide?.ShowSidebar(false);
-            this.Hide();
+            // 统一走 CollapseManually：它不受自动隐藏开关限制，
+            // 且在悬浮球模式下会正确弹出球体（而不是留下一个看不见的隐藏窗口）
+            if (_autoHide != null && _currentSettings.Window.AutoHideOnFocusLost)
+            {
+                _autoHide.CollapseManually();
+            }
+            else
+            {
+                // 自动隐藏关闭时，托盘的"隐藏"就是纯粹隐藏窗口、不留球
+                _autoHide?.ShowSidebar(false);
+                this.Hide();
+            }
         }
 
         private void ToggleWindow()
@@ -207,8 +221,8 @@ namespace gtt_sidebar.Core.Application
 
             WidgetContainer.Children.Clear();
 
-            // Discover widgets quickly (just creates instances, no initialization)
-            var widgets = _widgetManager.DiscoverAndLoadWidgets();
+            // 按用户的启用状态与自定义顺序装载组件
+            var widgets = _widgetManager.LoadWidgets(_currentSettings?.Widgets);
             System.Diagnostics.Debug.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] Widget discovery complete");
 
             // Add UI elements immediately 
@@ -228,6 +242,16 @@ namespace gtt_sidebar.Core.Application
             System.Diagnostics.Debug.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] LoadWidgets END");
         }
 
+        /// <summary>
+        /// 供设置窗口调用：组件启用状态或顺序变更后重建组件区，无需重启程序。
+        /// </summary>
+        public void ReloadWidgets()
+        {
+            // 重新读取一次设置，确保用的是最新持久化结果
+            _currentSettings = SettingsStorage.LoadSettings();
+            LoadWidgets();
+        }
+
         private void SettingsButton_Click(object sender, RoutedEventArgs e)
         {
             if (_settingsWindow != null && _settingsWindow.IsVisible)
@@ -242,6 +266,7 @@ namespace gtt_sidebar.Core.Application
             _settingsWindow = new SettingsWindow(_currentSettings);
             _settingsWindow.SettingsApplied += OnSettingsApplied;
             _settingsWindow.ShortcutsChanged += OnShortcutsChanged;
+            _settingsWindow.WidgetsChanged += OnWidgetsChanged;
             _settingsWindow.Left = this.Left - _settingsWindow.Width - 10;
             _settingsWindow.Top = this.Top;
 
@@ -286,6 +311,32 @@ namespace gtt_sidebar.Core.Application
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error refreshing shortcuts widget: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 设置在"组件"区切换启用/调整顺序后调用：立即重建组件区，无需重启。
+        /// 直接使用传入的最新配置，避免回读磁盘拿到旧数据。
+        /// </summary>
+        private void OnWidgetsChanged(WidgetSettings widgetSettings)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("OnWidgetsChanged: 重建组件区");
+
+                if (_currentSettings == null)
+                {
+                    _currentSettings = SettingsStorage.LoadSettings();
+                }
+
+                // 用设置窗口传回的内存对象替换，保证本次改动立刻反映到界面
+                _currentSettings.Widgets = widgetSettings;
+
+                LoadWidgets();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error reloading widgets: {ex.Message}");
             }
         }
         private void OnSettingsApplied(SettingsData newSettings)
@@ -352,7 +403,13 @@ namespace gtt_sidebar.Core.Application
             if (!_isClosing)
             {
                 e.Cancel = true;
-                HideWindow();
+
+                // 已处于收起状态（悬浮球模式窗口是 Hide 的）就直接跳过，
+                // 否则 HideWindow 会先 ShowSidebar 把窗口显示出来，造成一次闪烁。
+                if (!(_autoHide?.IsHidden ?? false))
+                {
+                    HideWindow();
+                }
             }
             base.OnClosing(e);
         }

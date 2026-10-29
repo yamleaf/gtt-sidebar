@@ -2,14 +2,13 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="Transparent"
-             Height="185"
-             Margin="0,0,0,5"
-             Cursor="Hand">
-    <Border Padding="6" 
-            CornerRadius="3"
-            Background="#F8F8F8"
-            BorderBrush="#E0E0E0"
-            BorderThickness="1"
+             Height="190"
+             Cursor="Hand"
+             UseLayoutRounding="True"
+             TextOptions.TextFormattingMode="Ideal">
+    <!-- 整张卡可点击打开备注弹窗，所以 Cursor 与命中测试都要保留 -->
+    <Border Style="{StaticResource CardBorder}"
+            Padding="11,10"
             Cursor="Hand">
         <Grid Cursor="Hand">
             <Grid.RowDefinitions>
@@ -17,40 +16,41 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- Header -->
-            <Grid Grid.Row="0" Margin="0,0,0,4" Cursor="Hand">
-                <TextBlock Text="备注" 
-                           Foreground="#333333" 
-                           FontSize="10"
+            <!-- 标题行 -->
+            <Grid Grid.Row="0" Margin="0,0,0,7" Cursor="Hand">
+                <TextBlock Text="备注"
+                           Foreground="{StaticResource TextPrimary}"
+                           FontSize="11.5"
                            FontWeight="SemiBold"
                            HorizontalAlignment="Left"
                            Cursor="Hand"
                            IsHitTestVisible="False"/>
-                <TextBlock x:Name="TabCountText"
-                           Text="1 个标签" 
-                           Foreground="#666666" 
-                           FontSize="8"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Center"
-                           Cursor="Hand"
-                           IsHitTestVisible="False"/>
+                <Border Background="{StaticResource SurfaceSubtle}"
+                        CornerRadius="4"
+                        Padding="5,1.5"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="False">
+                    <TextBlock x:Name="TabCountText"
+                               Text="1 个标签"
+                               Foreground="{StaticResource TextTertiary}"
+                               FontSize="8"
+                               Cursor="Hand"/>
+                </Border>
             </Grid>
 
-            <!-- Preview Content -->
-            <Border Grid.Row="1" 
-        Background="Transparent"
-        Cursor="Hand">
+            <!-- 内容预览 -->
+            <Border Grid.Row="1" Background="Transparent" Cursor="Hand">
                 <TextBlock x:Name="PreviewText"
-              Text="点击此处开始记录…"
-              Foreground="#666666"
-              FontSize="8"
-              TextWrapping="Wrap"
-              LineHeight="10"
-              MaxHeight="140"
-              Margin="2"
-              Cursor="Hand"
-              IsHitTestVisible="False"
-              VerticalAlignment="Top"/>
+                           Text="点击此处开始记录…"
+                           Foreground="{StaticResource TextSecondary}"
+                           FontSize="9"
+                           TextWrapping="Wrap"
+                           LineHeight="14"
+                           MaxHeight="140"
+                           Cursor="Hand"
+                           IsHitTestVisible="False"
+                           VerticalAlignment="Top"/>
             </Border>
         </Grid>
     </Border>

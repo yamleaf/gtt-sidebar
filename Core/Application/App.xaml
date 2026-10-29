@@ -2,8 +2,14 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:gtt_sidebar.Core.Application"
-             StartupUri="Core/Application/MainWindow.xaml">
+             StartupUri="pack://application:,,,/Core/Application/MainWindow.xaml"
+             ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
-
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- 统一设计系统：颜色 / 圆角 / 字号 / 卡片 / 按钮 / 滑块 / 勾选框 -->
+                <ResourceDictionary Source="pack://application:,,,/Core/Themes/DesignSystem.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

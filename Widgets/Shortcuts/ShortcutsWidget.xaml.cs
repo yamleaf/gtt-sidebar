@@ -19,14 +19,34 @@ namespace gtt_sidebar.Widgets.Shortcuts
         private ShortcutsData _shortcutsData;
         private int _iconsPerRow = 3; // Default, will be calculated
         private int _visibleShortcuts = 0;
-        private const int ICON_SIZE = 18; // Same as weather forecast icons
+        private const int ICON_SIZE = 22; // 图标显示尺寸（含内边距）
         private const int ICON_SPACING = 6; // Padding between icons
 
         public new string Name => "Shortcuts";
 
+        public string DisplayName => "快捷方式";
+
+        public string Description => "常用程序与网址的快速启动";
+
         public ShortcutsWidget()
         {
             InitializeComponent();
+
+            // 初始化时 ActualWidth 尚为 0，布局完成后再按真实宽度重算一次网格，
+            // 否则列数会按回退值估算，窄窗口下可能挤成一列。
+            SizeChanged += (s, e) =>
+            {
+                if (_shortcutsData?.Shortcuts == null || e.NewSize.Width <= 0) return;
+
+                var newPerRow = (int)Math.Round((e.NewSize.Width - 24.0) / (ICON_SIZE + 10.0));
+                newPerRow = Math.Max(3, Math.Min(6, newPerRow));
+
+                if (newPerRow != _iconsPerRow)
+                {
+                    CalculateLayout();
+                    CreateShortcutsGrid();
+                }
+            };
         }
 
         public UserControl GetControl() => this;
@@ -65,35 +85,39 @@ namespace gtt_sidebar.Widgets.Shortcuts
         /// <summary>
         /// Calculate how many icons per row based on widget width
         /// </summary>
+        /// <summary>
+        /// 计算每行能放几个图标。
+        ///
+        /// 卡片不设固定高度、内部也不放滚动条：网格行高为 Auto，
+        /// 快捷方式变多时卡片自动向下变长。因此这里只需决定**列数**，
+        /// 不需要再算"能显示几行"。
+        /// </summary>
         private void CalculateLayout()
         {
             try
             {
-                // 组件可用宽度（宽度 122px 减去左右内边距）
-                var availableWidth = 113.0;
+                // 组件可用宽度：自适应真实控件宽度，减去卡片内边距（11*2）
+                var actual = this.ActualWidth > 0 ? this.ActualWidth : 144.0;
+                var availableWidth = Math.Max(80.0, actual - 22.0 - 2);
 
-                // 每行图标数量：5 列能让默认 8 个快捷方式排成整齐的两行
-                _iconsPerRow = 5;
+                // 每个图标实际占位 = 图标尺寸 + 按钮额外内边距(8) + 外边距(2)
+                var cellWidth = ICON_SIZE + 10.0;
 
-                var totalIconWidth = _iconsPerRow * ICON_SIZE;
-                var totalSpacing = availableWidth - totalIconWidth;
-                var spacingPerIcon = Math.Max(2, totalSpacing / (_iconsPerRow + 1)); // +1 for edges
+                // 列数按可用宽度动态计算，至少 3 列，最多 6 列
+                _iconsPerRow = (int)Math.Round(availableWidth / cellWidth);
+                _iconsPerRow = Math.Max(3, Math.Min(6, _iconsPerRow));
 
-                // 可用高度：头部约 20px，其余留给图标
-                var availableHeight = 122.0;
-                var iconWithVerticalSpacing = ICON_SIZE + spacingPerIcon;
-                var maxRows = Math.Max(1, (int)Math.Floor(availableHeight / iconWithVerticalSpacing));
+                // 不再截断条目：全部显示，高度随行数增长
+                _visibleShortcuts = int.MaxValue;
 
-                _visibleShortcuts = _iconsPerRow * maxRows;
-
-                System.Diagnostics.Debug.WriteLine($"Layout: {_iconsPerRow} icons per row, {maxRows} rows, {_visibleShortcuts} visible shortcuts");
-                System.Diagnostics.Debug.WriteLine($"Icon size: {ICON_SIZE}px, Spacing: {spacingPerIcon:F1}px");
+                System.Diagnostics.Debug.WriteLine(
+                    $"Layout: {_iconsPerRow} icons per row, cell={cellWidth}px, available={availableWidth:F0}px");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error calculating layout: {ex.Message}");
-                _iconsPerRow = 5;
-                _visibleShortcuts = 20; // 5x4 grid
+                _iconsPerRow = 4;
+                _visibleShortcuts = int.MaxValue;
             }
         }
 
@@ -185,9 +209,9 @@ namespace gtt_sidebar.Widgets.Shortcuts
         {
             var button = new Button
             {
-                Width = ICON_SIZE,
-                Height = ICON_SIZE,
-                Margin = new Thickness(2),
+                Width = ICON_SIZE + 8,
+                Height = ICON_SIZE + 8,
+                Margin = new Thickness(1, 2, 1, 2),
                 Background = Brushes.Transparent,
                 BorderThickness = new Thickness(0),
                 Cursor = System.Windows.Input.Cursors.Hand,
@@ -198,14 +222,39 @@ namespace gtt_sidebar.Widgets.Shortcuts
                 Padding = new Thickness(0)
             };
 
+            // 悬停时浮现浅色圆角底托，比纯图标更有"可点击"的暗示。
+            //
+            // 注意：这里用 XamlReader 解析模板，而不是手写 FrameworkElementFactory。
+            // 因为 Trigger 要按 Name 定位模板内元素，而 FrameworkElementFactory
+            // 的 Name 必须通过其 .Name 属性设置——用 SetValue(NameProperty) 设不进去，
+            // 会抛 "VisualTree 中未找到带有 Name 'xxx' 的子级"（实测踩过）。
+            const string hoverTemplateXaml =
+                "<ControlTemplate TargetType=\"Button\" " +
+                "xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" " +
+                "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">" +
+                  "<Border x:Name=\"HoverBd\" CornerRadius=\"7\" Background=\"Transparent\">" +
+                    "<ContentPresenter HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"/>" +
+                  "</Border>" +
+                  "<ControlTemplate.Triggers>" +
+                    "<Trigger Property=\"IsMouseOver\" Value=\"True\">" +
+                      "<Setter TargetName=\"HoverBd\" Property=\"Background\" Value=\"#EEF1F5\"/>" +
+                    "</Trigger>" +
+                  "</ControlTemplate.Triggers>" +
+                "</ControlTemplate>";
+
+            var hoverTemplate = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(hoverTemplateXaml);
+            var hoverStyle = new Style(typeof(Button));
+            hoverStyle.Setters.Add(new Setter(Button.TemplateProperty, hoverTemplate));
+            button.Style = hoverStyle;
+
             // Set content based on icon type
             if (shortcut.IconType == "custom")
             {
                 // Show custom image
                 var image = new Image
                 {
-                    Width = ICON_SIZE,
-                    Height = ICON_SIZE
+                    Width = ICON_SIZE - 2,
+                    Height = ICON_SIZE - 2
                 };
 
                 var iconPath = ShortcutsStorage.GetCustomIconPath(shortcut.IconValue);
@@ -274,15 +323,8 @@ namespace gtt_sidebar.Widgets.Shortcuts
                 }
             }
 
-            // Apply custom style to remove hover effects
-            var style = new Style(typeof(Button));
-            var template = new ControlTemplate(typeof(Button));
-            var contentPresenter = new FrameworkElementFactory(typeof(ContentPresenter));
-            contentPresenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-            contentPresenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-            template.VisualTree = contentPresenter;
-            style.Setters.Add(new Setter(Button.TemplateProperty, template));
-            button.Style = style;
+            // 注意：按钮样式已在方法开头设置（带悬停圆角底托），
+            // 这里不要再覆盖 Template，否则悬停反馈会丢失。
 
             button.Click += ShortcutButton_Click;
 

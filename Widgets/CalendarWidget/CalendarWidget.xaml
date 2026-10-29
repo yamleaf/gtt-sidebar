@@ -2,66 +2,73 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Background="Transparent"
-             Margin="0,0,0,5">
-    <Border Padding="5"
-            CornerRadius="3"
-            Background="#F8F8F8"
-            BorderBrush="#E0E0E0"
-            BorderThickness="1">
+             UseLayoutRounding="True"
+             TextOptions.TextFormattingMode="Ideal">
+    <Border Style="{StaticResource CardBorder}" Padding="10,11">
         <StackPanel>
-            <!-- 月份标题 -->
-            <Grid Margin="0,0,0,4">
+            <!-- 月份标题 + 今天标记：用 Grid 分列，避免标题被徽章压住 -->
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
                 <TextBlock x:Name="MonthTitleText"
+                           Grid.Column="0"
                            Text="2026年1月"
-                           Foreground="#333333"
-                           FontSize="10"
+                           Foreground="{StaticResource TextPrimary}"
+                           FontSize="11.5"
                            FontWeight="SemiBold"
-                           HorizontalAlignment="Left"/>
-                <TextBlock x:Name="TodayTagText"
-                           Text="今天"
-                           Foreground="#4A90E2"
-                           FontSize="8"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Center"/>
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="0,0,6,0"/>
+                <Border Grid.Column="1"
+                        Background="{StaticResource AccentSoft}"
+                        CornerRadius="4"
+                        Padding="5,1.5"
+                        VerticalAlignment="Center">
+                    <TextBlock x:Name="TodayTagText"
+                               Text="今天"
+                               Foreground="{StaticResource AccentPrimary}"
+                               FontSize="8"
+                               FontWeight="SemiBold"/>
+                </Border>
             </Grid>
 
             <!-- 星期表头 -->
             <UniformGrid x:Name="WeekHeaderGrid"
                          Columns="7"
-                         Margin="0,0,0,2"/>
+                         Margin="0,0,0,3"/>
 
             <!-- 日期网格 -->
             <UniformGrid x:Name="DaysGrid"
                          Columns="7"/>
 
-            <!-- 分隔线 -->
-            <Border BorderBrush="#E0E0E0"
-                    BorderThickness="0,1,0,0"
-                    Margin="0,5,0,0"
-                    Padding="0,4,0,0">
+            <!-- 节假日区：浅色底块，与日期网格区分开 -->
+            <Border Background="{StaticResource SurfaceSubtle}"
+                    CornerRadius="7"
+                    Margin="0,9,0,0"
+                    Padding="7,6">
                 <StackPanel>
-                    <!-- 下一个节假日 -->
-                    <Grid>
-                        <TextBlock x:Name="NextHolidayText"
-                                   Text="--"
-                                   Foreground="#333333"
-                                   FontSize="8"
-                                   TextTrimming="CharacterEllipsis"
-                                   HorizontalAlignment="Left"/>
-                        <TextBlock x:Name="CountdownText"
-                                   Text=""
-                                   Foreground="#D9534F"
-                                   FontSize="8"
-                                   FontWeight="SemiBold"
-                                   HorizontalAlignment="Right"/>
-                    </Grid>
-                    <!-- 数据来源/状态 -->
+                    <TextBlock x:Name="NextHolidayText"
+                               Text="--"
+                               Foreground="{StaticResource TextSecondary}"
+                               FontSize="8.5"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="CountdownText"
+                               Text=""
+                               Foreground="{StaticResource StateDanger}"
+                               FontSize="8.5"
+                               FontWeight="SemiBold"
+                               Margin="0,2,0,0"/>
                     <TextBlock x:Name="SourceText"
                                Text=""
-                               Foreground="#BBBBBB"
-                               FontSize="7"
-                               Margin="0,2,0,0"
-                               TextTrimming="CharacterEllipsis"/>
+                               Foreground="{StaticResource TextTertiary}"
+                               FontSize="7.5"
+                               Margin="0,3,0,0"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"
+                               MaxHeight="20"/>
                 </StackPanel>
             </Border>
         </StackPanel>

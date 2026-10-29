@@ -16,6 +16,11 @@ namespace gtt_sidebar.Core.Settings
     {
         public event Action ShortcutsChanged;
         public event Action SystemMonitorSettingsChanged;
+
+        /// <summary>
+        /// 组件启用状态或顺序变更（即时生效，由主窗口重建组件区）
+        /// </summary>
+        public event Action<WidgetSettings> WidgetsChanged;
         private SettingsData _originalSettings;
         private SettingsData _currentSettings;
         private ShortcutsData _shortcutsData;
@@ -310,173 +315,203 @@ namespace gtt_sidebar.Core.Settings
         /// <summary>
         /// Creates a UI card for a single shortcut with up/down reordering buttons
         /// </summary>
+        /// <summary>
+        /// 创建设置页中的单个快捷方式编辑卡片。
+        ///
+        /// 视觉规范与主界面一致：浅灰底内嵌卡片 + 细描边 + 圆角，
+        /// 输入框无边框（靠底色区分），操作按钮用极简图标而非 emoji。
+        /// </summary>
         private Border CreateShortcutCard(ShortcutItem shortcut)
         {
+            var subtle = new SolidColorBrush(Color.FromRgb(0xF7, 0xF8, 0xFA));
+            var borderSubtle = new SolidColorBrush(Color.FromRgb(0xE8, 0xEB, 0xF0));
+            var textPrimary = new SolidColorBrush(Color.FromRgb(0x1A, 0x1D, 0x23));
+            var textTertiary = new SolidColorBrush(Color.FromRgb(0x90, 0x99, 0xA8));
+
             var card = new Border
             {
-                Background = new SolidColorBrush(Colors.White),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(224, 224, 224)),
+                Background = subtle,
+                BorderBrush = borderSubtle,
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(2),
-                Margin = new Thickness(0, 0, 0, 8),
-                Padding = new Thickness(8),
+                CornerRadius = new CornerRadius(9),
+                Margin = new Thickness(0, 0, 0, 7),
+                Padding = new Thickness(9, 8, 8, 8),
                 Tag = shortcut.Id
             };
 
             var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Icon
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // Content
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); // Buttons
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });         // 图标
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 内容
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });         // 操作
 
-            // Icon Preview (Clickable)
+            // ── 图标预览（可点击换图标） ──
             var iconBorder = new Border
             {
-                Width = 26,
-                Height = 26,
-                BorderBrush = new SolidColorBrush(Color.FromRgb(208, 208, 208)),
+                Width = 30,
+                Height = 30,
+                BorderBrush = borderSubtle,
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(2),
-                Margin = new Thickness(0, 0, 8, 0),
+                CornerRadius = new CornerRadius(7),
+                Margin = new Thickness(0, 0, 9, 0),
                 Cursor = Cursors.Hand,
                 Tag = shortcut.Id,
-                Background = new SolidColorBrush(Color.FromRgb(248, 248, 248))
+                Background = Brushes.White,
+                VerticalAlignment = VerticalAlignment.Center
             };
 
             var iconDisplay = CreateIconDisplay(shortcut);
             iconBorder.Child = iconDisplay;
             iconBorder.PreviewMouseLeftButtonDown += IconBorder_Click;
 
-            // Content Area
+            // ── 名称与路径：上下两行，每行是「标签 + 无边框输入框」 ──
             var contentPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
 
-            // Label row
-            var labelGrid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
-            labelGrid.Children.Add(new TextBlock
+            contentPanel.Children.Add(new TextBlock
             {
-                Text = "名称：",
-                FontSize = 9,
-                Foreground = new SolidColorBrush(Color.FromRgb(102, 102, 102)),
-                HorizontalAlignment = HorizontalAlignment.Left
+                Text = "名称",
+                FontSize = 8.5,
+                Foreground = textTertiary,
+                Margin = new Thickness(1, 0, 0, 1)
             });
 
             var labelTextBox = new TextBox
             {
                 Text = shortcut.Label,
-                FontSize = 9,
-                Height = 20,
-                Margin = new Thickness(35, 0, 0, 0),
+                FontSize = 10,
+                Height = 22,
+                Padding = new Thickness(5, 0, 5, 0),
+                Foreground = textPrimary,
+                Background = Brushes.White,
                 BorderThickness = new Thickness(1),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(208, 208, 208)),
-                Tag = shortcut.Id
+                BorderBrush = borderSubtle,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Tag = shortcut.Id,
+                Margin = new Thickness(0, 0, 0, 5)
             };
-
             labelTextBox.TextChanged += ShortcutField_TextChanged;
-            labelGrid.Children.Add(labelTextBox);
-            contentPanel.Children.Add(labelGrid);
+            contentPanel.Children.Add(labelTextBox);
 
-            // Path row
-            var pathGrid = new Grid();
-            pathGrid.Children.Add(new TextBlock
+            contentPanel.Children.Add(new TextBlock
             {
-                Text = "路径：",
-                FontSize = 9,
-                Foreground = new SolidColorBrush(Color.FromRgb(102, 102, 102)),
-                HorizontalAlignment = HorizontalAlignment.Left
+                Text = "路径",
+                FontSize = 8.5,
+                Foreground = textTertiary,
+                Margin = new Thickness(1, 0, 0, 1)
             });
 
             var pathTextBox = new TextBox
             {
                 Text = shortcut.Path,
-                FontSize = 9,
-                Height = 20,
-                Margin = new Thickness(35, 0, 0, 0),
+                FontSize = 9.5,
+                Height = 22,
+                Padding = new Thickness(5, 0, 5, 0),
+                Foreground = textPrimary,
+                Background = Brushes.White,
                 BorderThickness = new Thickness(1),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(208, 208, 208)),
+                BorderBrush = borderSubtle,
+                VerticalContentAlignment = VerticalAlignment.Center,
                 Tag = shortcut.Id
             };
             pathTextBox.TextChanged += ShortcutField_TextChanged;
-            pathGrid.Children.Add(pathTextBox);
-            contentPanel.Children.Add(pathGrid);
+            contentPanel.Children.Add(pathTextBox);
 
-            // Buttons Panel
+            // ── 操作按钮：竖排两行，用几何图标 ──
             var buttonsPanel = new StackPanel
             {
-                Orientation = Orientation.Horizontal,
+                Orientation = Orientation.Vertical,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(8, 0, 0, 0)
+                Margin = new Thickness(9, 0, 0, 0)
             };
 
-            // Up Button
-            var upButton = new Button
+            var topRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+            var bottomRow = new StackPanel { Orientation = Orientation.Horizontal };
+
+            Button MakeIconButton(string pathData, string tooltip, System.Windows.Media.Brush fg, double w = 24)
             {
-                Content = "▲",
-                Width = 20,
-                Height = 20,
-                FontSize = 8,
-                Background = new SolidColorBrush(Color.FromRgb(108, 117, 125)),
-                Foreground = new SolidColorBrush(Colors.White),
-                BorderThickness = new Thickness(0),
-                Margin = new Thickness(0, 0, 2, 0),
-                ToolTip = "上移",
-                Tag = shortcut.Id
-            };
+                var b = new Button
+                {
+                    Width = w,
+                    Height = 22,
+                    Margin = new Thickness(0, 0, 4, 0),
+                    Background = Brushes.White,
+                    BorderThickness = new Thickness(1),
+                    BorderBrush = borderSubtle,
+                    Cursor = Cursors.Hand,
+                    ToolTip = tooltip,
+                    Tag = shortcut.Id,
+                    Padding = new Thickness(0)
+                };
+
+                // 极简模板：圆角 + 悬停浅底
+                //
+                // 注意：模板字符串必须是合法 XHTML，`{TemplateBinding X}` 里的 X
+                // 需要命名空间解析，因此必须声明 xmlns:x（否则 XamlReader 抛 XmlException
+                // "找不到命名空间"）。这里统一显式声明两个命名空间。
+                var tpl =
+                    "<ControlTemplate TargetType=\"Button\" " +
+                    "xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" " +
+                    "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">" +
+                    "<Border x:Name=\"B\" CornerRadius=\"6\" " +
+                    "Background=\"{TemplateBinding Background}\" " +
+                    "BorderBrush=\"{TemplateBinding BorderBrush}\" BorderThickness=\"1\" " +
+                    "SnapsToDevicePixels=\"True\">" +
+                    "<Path x:Name=\"P\" Data=\"" + pathData + "\" Stroke=\"" + ToHex(fg) + "\" " +
+                    "StrokeThickness=\"1.3\" StrokeStartLineCap=\"Round\" StrokeEndLineCap=\"Round\" " +
+                    "StrokeLineJoin=\"Round\" HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\" " +
+                    "IsHitTestVisible=\"False\"/>" +
+                    "</Border>" +
+                    "<ControlTemplate.Triggers>" +
+                    "<Trigger Property=\"IsMouseOver\" Value=\"True\">" +
+                    "<Setter TargetName=\"B\" Property=\"Background\" Value=\"#EEF1F5\"/>" +
+                    "</Trigger>" +
+                    "<Trigger Property=\"IsEnabled\" Value=\"False\">" +
+                    "<Setter TargetName=\"B\" Property=\"Opacity\" Value=\"0.35\"/>" +
+                    "</Trigger>" +
+                    "</ControlTemplate.Triggers></ControlTemplate>";
+
+                try
+                {
+                    b.Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(tpl);
+                }
+                catch (Exception ex)
+                {
+                    // 模板解析失败不应让整个设置窗口崩溃，退化为默认按钮外观
+                    System.Diagnostics.Debug.WriteLine($"快捷方式按钮模板解析失败: {ex.Message}");
+                    b.Content = "·";
+                }
+                return b;
+            }
+
+            // 上移 / 下移
+            var upButton = MakeIconButton("M 2,5 L 5,2 L 8,5", "上移",
+                new SolidColorBrush(Color.FromRgb(0x5A, 0x62, 0x70)));
             upButton.Click += MoveUp_Click;
 
-            // Down Button
-            var downButton = new Button
-            {
-                Content = "▼",
-                Width = 20,
-                Height = 20,
-                FontSize = 8,
-                Background = new SolidColorBrush(Color.FromRgb(108, 117, 125)),
-                Foreground = new SolidColorBrush(Colors.White),
-                BorderThickness = new Thickness(0),
-                Margin = new Thickness(0, 0, 4, 0),
-                ToolTip = "下移",
-                Tag = shortcut.Id
-            };
+            var downButton = MakeIconButton("M 2,2 L 5,5 L 8,2", "下移",
+                new SolidColorBrush(Color.FromRgb(0x5A, 0x62, 0x70)));
             downButton.Click += MoveDown_Click;
 
-            // Save Button
-            var saveButton = new Button
-            {
-                Content = "💾",
-                Width = 24,
-                Height = 24,
-                FontSize = 10,
-                Background = new SolidColorBrush(Color.FromRgb(40, 167, 69)),
-                Foreground = new SolidColorBrush(Colors.White),
-                BorderThickness = new Thickness(0),
-                Margin = new Thickness(0, 0, 4, 0),
-                IsEnabled = false,
-                ToolTip = "保存修改",
-                Tag = shortcut.Id
-            };
+            // 保存（对勾）
+            var saveButton = MakeIconButton("M 2,5 L 4.5,7.5 L 8.5,2", "保存修改",
+                new SolidColorBrush(Color.FromRgb(0x34, 0xC7, 0x59)));
+            saveButton.IsEnabled = false;
             saveButton.Click += SaveShortcut_Click;
 
-            // Delete Button
-            var deleteButton = new Button
-            {
-                Content = "×",
-                Width = 24,
-                Height = 24,
-                FontSize = 12,
-                FontWeight = FontWeights.Bold,
-                Background = new SolidColorBrush(Color.FromRgb(220, 53, 69)),
-                Foreground = new SolidColorBrush(Colors.White),
-                BorderThickness = new Thickness(0),
-                ToolTip = "删除快捷方式",
-                Tag = shortcut.Id
-            };
+            // 删除（叉）
+            var deleteButton = MakeIconButton("M 2,2 L 8,8 M 8,2 L 2,8", "删除快捷方式",
+                new SolidColorBrush(Color.FromRgb(0xFF, 0x4D, 0x4F)));
             deleteButton.Click += DeleteShortcut_Click;
+            deleteButton.Margin = new Thickness(0);
 
-            buttonsPanel.Children.Add(upButton);
-            buttonsPanel.Children.Add(downButton);
-            buttonsPanel.Children.Add(saveButton);
-            buttonsPanel.Children.Add(deleteButton);
+            topRow.Children.Add(upButton);
+            topRow.Children.Add(downButton);
+            bottomRow.Children.Add(saveButton);
+            bottomRow.Children.Add(deleteButton);
 
-            // Assemble grid
+            buttonsPanel.Children.Add(topRow);
+            buttonsPanel.Children.Add(bottomRow);
+
+            // ── 组装 ──
             Grid.SetColumn(iconBorder, 0);
             Grid.SetColumn(contentPanel, 1);
             Grid.SetColumn(buttonsPanel, 2);
@@ -486,11 +521,19 @@ namespace gtt_sidebar.Core.Settings
 
             card.Child = grid;
 
-            // Add hover effects for the icon border
-            iconBorder.MouseEnter += (s, e) => iconBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(100, 149, 237));
-            iconBorder.MouseLeave += (s, e) => iconBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(208, 208, 208));
+            // 图标框悬停高亮
+            iconBorder.MouseEnter += (s, e) =>
+                iconBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0x4A, 0x90, 0xE2));
+            iconBorder.MouseLeave += (s, e) => iconBorder.BorderBrush = borderSubtle;
 
             return card;
+        }
+
+        /// <summary>把 Brush 转成 #RRGGBB 字符串（供 XamlReader 模板使用）</summary>
+        private static string ToHex(System.Windows.Media.Brush brush)
+        {
+            var c = (brush as SolidColorBrush)?.Color ?? Colors.Black;
+            return $"#{c.R:X2}{c.G:X2}{c.B:X2}";
         }
 
         private async void MoveUp_Click(object sender, RoutedEventArgs e)
@@ -551,6 +594,280 @@ namespace gtt_sidebar.Core.Settings
                 ShortcutsArrow.Text = "▼";
             }
         }
+
+        #region 组件（插件）管理
+
+        /// <summary>
+        /// 当前组件列表在界面中的顺序（与 _widgetSettings 同步维护）
+        /// </summary>
+        private readonly List<WidgetDescriptor> _orderedDescriptors = new List<WidgetDescriptor>();
+
+        private void WidgetsHeader_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (WidgetsContent.Visibility == Visibility.Visible)
+            {
+                WidgetsContent.Visibility = Visibility.Collapsed;
+                WidgetsArrow.Text = "▶";
+            }
+            else
+            {
+                WidgetsContent.Visibility = Visibility.Visible;
+                WidgetsArrow.Text = "▼";
+            }
+        }
+
+        /// <summary>
+        /// 刷新组件管理列表：按当前配置的启用状态与顺序重建条目
+        /// </summary>
+        private void RefreshWidgetsList()
+        {
+            if (WidgetsList == null) return;
+
+            WidgetsList.Children.Clear();
+            _orderedDescriptors.Clear();
+
+            var manager = WidgetRegistry.Instance;
+            var all = manager.AvailableWidgets;
+            if (all == null || all.Count == 0) return;
+
+            var setting = _currentSettings?.Widgets;
+
+            // 排序：用户自定义顺序在前，其余按内置默认顺序兜底
+            _orderedDescriptors.AddRange(all
+                .OrderBy(d =>
+                {
+                    var custom = setting?.GetOrder(d.Name) ?? int.MaxValue;
+                    return custom == int.MaxValue ? d.DefaultOrder : custom;
+                })
+                .ThenBy(d => d.DefaultOrder));
+
+            for (int i = 0; i < _orderedDescriptors.Count; i++)
+            {
+                WidgetsList.Children.Add(CreateWidgetRow(_orderedDescriptors[i], i));
+            }
+        }
+
+        /// <summary>
+        /// 生成单行组件条目：勾选框 + 名称/说明 + 上移/下移
+        /// </summary>
+        private Border CreateWidgetRow(WidgetDescriptor descriptor, int index)
+        {
+            var subtle = new SolidColorBrush(Color.FromRgb(0xF7, 0xF8, 0xFA));
+            var borderSubtle = new SolidColorBrush(Color.FromRgb(0xE8, 0xEB, 0xF0));
+            var textTertiary = new SolidColorBrush(Color.FromRgb(0x90, 0x99, 0xA8));
+
+            var row = new Border
+            {
+                Background = subtle,
+                BorderBrush = borderSubtle,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(9),
+                Margin = new Thickness(0, 0, 0, 7),
+                Padding = new Thickness(9, 8, 7, 8)
+            };
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            // 勾选框：绑定启用状态
+            var check = new CheckBox
+            {
+                Style = (Style)FindResource("ModernCheckBox"),
+                IsChecked = _currentSettings?.Widgets?.IsEnabled(descriptor.Name) ?? true,
+                VerticalAlignment = VerticalAlignment.Center,
+                Tag = descriptor.Name,
+                Margin = new Thickness(0, 0, 9, 0),
+                ToolTip = "勾选后显示该组件"
+            };
+            check.Checked += WidgetEnabled_Changed;
+            check.Unchecked += WidgetEnabled_Changed;
+
+            // 名称 + 说明
+            var textPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            textPanel.Children.Add(new TextBlock
+            {
+                Text = descriptor.DisplayName,
+                FontSize = 10.5,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x1A, 0x1D, 0x23)),
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+            textPanel.Children.Add(new TextBlock
+            {
+                Text = descriptor.Description,
+                FontSize = 8.5,
+                Foreground = textTertiary,
+                Margin = new Thickness(0, 2, 0, 0),
+                TextWrapping = TextWrapping.Wrap
+            });
+
+            // 上移 / 下移：自绘几何箭头，与快捷方式卡片的按钮视觉统一
+            var arrows = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(8, 0, 0, 0)
+            };
+
+            var up = MakeWidgetArrow("M 2,5 L 5,2 L 8,5", "上移", descriptor.Name, index > 0);
+            up.Click += WidgetMoveUp_Click;
+
+            var down = MakeWidgetArrow("M 2,2 L 5,5 L 8,2", "下移", descriptor.Name,
+                index < _orderedDescriptors.Count - 1);
+            down.Click += WidgetMoveDown_Click;
+
+            arrows.Children.Add(up);
+            arrows.Children.Add(down);
+
+            Grid.SetColumn(check, 0);
+            Grid.SetColumn(textPanel, 1);
+            Grid.SetColumn(arrows, 2);
+            grid.Children.Add(check);
+            grid.Children.Add(textPanel);
+            grid.Children.Add(arrows);
+
+            row.Child = grid;
+            return row;
+        }
+
+        /// <summary>
+        /// 生成组件的上移/下移小按钮（与快捷方式卡片的箭头同款视觉）。
+        ///
+        /// 自绘 ControlTemplate 用 XamlReader.Parse 构建：
+        /// 必须同时声明 xmlns 与 xmlns:x，否则 {TemplateBinding X} 解析失败会崩进程。
+        /// </summary>
+        private Button MakeWidgetArrow(string pathData, string tooltip, string widgetName, bool enabled)
+        {
+            var b = new Button
+            {
+                Width = 22,
+                Height = 22,
+                Margin = new Thickness(0, 0, 4, 0),
+                Background = Brushes.White,
+                BorderThickness = new Thickness(1),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xEB, 0xF0)),
+                Cursor = Cursors.Hand,
+                ToolTip = tooltip,
+                Tag = widgetName,
+                IsEnabled = enabled,
+                Padding = new Thickness(0)
+            };
+
+            var tpl =
+                "<ControlTemplate TargetType=\"Button\" " +
+                "xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" " +
+                "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">" +
+                "<Border x:Name=\"B\" CornerRadius=\"6\" Background=\"#FFFFFF\" " +
+                "BorderBrush=\"#E8EBF0\" BorderThickness=\"1\" SnapsToDevicePixels=\"True\">" +
+                "<Path Data=\"" + pathData + "\" Stroke=\"#5A6270\" StrokeThickness=\"1.3\" " +
+                "StrokeStartLineCap=\"Round\" StrokeEndLineCap=\"Round\" StrokeLineJoin=\"Round\" " +
+                "HorizontalAlignment=\"Center\" VerticalAlignment=\"Center\"/>" +
+                "</Border>" +
+                "<ControlTemplate.Triggers>" +
+                "<Trigger Property=\"IsMouseOver\" Value=\"True\">" +
+                "<Setter TargetName=\"B\" Property=\"Background\" Value=\"#EEF1F5\"/>" +
+                "</Trigger>" +
+                "<Trigger Property=\"IsEnabled\" Value=\"False\">" +
+                "<Setter TargetName=\"B\" Property=\"Opacity\" Value=\"0.3\"/>" +
+                "</Trigger>" +
+                "</ControlTemplate.Triggers></ControlTemplate>";
+
+            try
+            {
+                b.Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(tpl);
+            }
+            catch (Exception ex)
+            {
+                // 模板失败只影响外观，不影响功能
+                System.Diagnostics.Debug.WriteLine($"组件箭头模板解析失败: {ex.Message}");
+            }
+
+            return b;
+        }
+
+        private void WidgetEnabled_Changed(object sender, RoutedEventArgs e)
+        {
+            var name = (string)((CheckBox)sender).Tag;
+            var enabled = ((CheckBox)sender).IsChecked == true;
+
+            _currentSettings.Widgets.SetEnabled(name, enabled);
+
+            // 即时生效：立刻保存并通知主窗口重建组件区
+            ApplyWidgetsImmediately();
+        }
+
+        private void WidgetMoveUp_Click(object sender, RoutedEventArgs e)
+        {
+            var name = (string)((Button)sender).Tag;
+            MoveWidget(name, -1);
+        }
+
+        private void WidgetMoveDown_Click(object sender, RoutedEventArgs e)
+        {
+            var name = (string)((Button)sender).Tag;
+            MoveWidget(name, +1);
+        }
+
+        private void MoveWidget(string widgetName, int delta)
+        {
+            try
+            {
+                var index = _orderedDescriptors.FindIndex(d => d.Name == widgetName);
+
+                if (index < 0) return;
+
+                var target = index + delta;
+                if (target < 0 || target >= _orderedDescriptors.Count) return;
+
+                var moved = _orderedDescriptors[index];
+                _orderedDescriptors.RemoveAt(index);
+                _orderedDescriptors.Insert(target, moved);
+
+                _currentSettings.Widgets.ApplyOrder(_orderedDescriptors.Select(d => d.Name).ToList());
+
+                // 注意顺序：先通知主窗口重建并落盘，再刷新本列表。
+                // 若先 RefreshWidgetsList()，它会按旧的 _currentSettings 重排，可能覆盖刚才的顺序。
+                ApplyWidgetsImmediately();
+                RefreshWidgetsList();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"MoveWidget failed: {ex.Message}");
+            }
+        }
+        /// <summary>
+        /// 组件设置即时生效：持久化后通知主窗口重新装载。
+        ///
+        /// 注意：这里把 WidgetSettings 对象**直接传给主窗口**，
+        /// 而不是让主窗口回读磁盘。因为 SaveSettings 内部用
+        /// Task.Run(...).Result 同步等待异步写入，在 UI 线程上可能尚未落盘，
+        /// 回读会拿到旧数据导致"改了没反应"（实测踩过）。
+        /// </summary>
+        private void ApplyWidgetsImmediately()
+        {
+            try
+            {
+                SettingsStorage.SaveSettings(_currentSettings);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"保存组件设置失败: {ex.Message}");
+            }
+
+            // 无论落盘是否完成，界面都应立刻反映当前内存中的配置
+            try
+            {
+                WidgetsChanged?.Invoke(_currentSettings.Widgets);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"应用组件设置失败: {ex.Message}");
+            }
+        }
+
+        #endregion
 
         /// <summary>
         /// Handle text changes in shortcut fields
@@ -944,7 +1261,10 @@ namespace gtt_sidebar.Core.Settings
                     AutoHideDelayMs = settings.Window.AutoHideDelayMs,
                     AutoHidePeekPx = settings.Window.AutoHidePeekPx,
                     AutoHideEdgeTopRatio = settings.Window.AutoHideEdgeTopRatio,
-                    AutoHideEdgeBottomRatio = settings.Window.AutoHideEdgeBottomRatio
+                    AutoHideEdgeBottomRatio = settings.Window.AutoHideEdgeBottomRatio,
+                    UseFloatingBall = settings.Window.UseFloatingBall,
+                    FloatingBallY = settings.Window.FloatingBallY,
+                    FloatingBallSize = settings.Window.FloatingBallSize
                 },
                 SystemMonitor = new SystemMonitorSettings
                 {
@@ -952,6 +1272,18 @@ namespace gtt_sidebar.Core.Settings
                     RamThreshold = settings.SystemMonitor.RamThreshold,
                     PingThreshold = settings.SystemMonitor.PingThreshold,
                     UpdateFrequencySeconds = settings.SystemMonitor.UpdateFrequencySeconds
+                },
+                // 组件状态必须一并克隆，否则编辑期间的改动会丢掉已有的启用/排序信息
+                Widgets = new WidgetSettings
+                {
+                    Items = (settings.Widgets?.Items ?? new List<WidgetState>())
+                        .Select(i => new WidgetState
+                        {
+                            Name = i.Name,
+                            Enabled = i.Enabled,
+                            Order = i.Order
+                        })
+                        .ToList()
                 },
                 Version = settings.Version
             };
@@ -1036,9 +1368,18 @@ namespace gtt_sidebar.Core.Settings
             AutoHideEdgeBottomSlider.Value = _currentSettings.Window.AutoHideEdgeBottomRatio * 100;
             AutoHideEdgeBottomValueText.Text = $"{(int)(_currentSettings.Window.AutoHideEdgeBottomRatio * 100)}%";
 
+            // 收起方式：悬浮球
+            if (FloatingBallCheckBox != null)
+            {
+                FloatingBallCheckBox.IsChecked = _currentSettings.Window.UseFloatingBall;
+            }
+
             UpdateAutoHideControlsEnabled();
 
             LoadSystemMonitorSettingsToUI();
+
+            // 组件（插件）管理列表
+            RefreshWidgetsList();
         }
 
         /// <summary>
@@ -1053,6 +1394,16 @@ namespace gtt_sidebar.Core.Settings
         }
 
         private void AutoHideCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            UpdateAutoHideControlsEnabled();
+        }
+
+        /// <summary>
+        /// 切换收起方式：悬浮球 / 传统贴边。
+        /// 同时联动贴边相关滑块的可编辑性——悬浮球模式下它们仍用于计算球的默认位置，
+        /// 所以保持可用，不做置灰。
+        /// </summary>
+        private void FloatingBallCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             UpdateAutoHideControlsEnabled();
         }

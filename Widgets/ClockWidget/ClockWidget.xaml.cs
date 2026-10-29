@@ -11,6 +11,10 @@ namespace gtt_sidebar.Widgets.ClockWidget
         private DispatcherTimer _timer;
 
         public new string Name => "Clock";  // Add 'new' keyword
+
+        public string DisplayName => "时钟";
+
+        public string Description => "显示当前时间与日期";
         public ClockWidget()
         {
             InitializeComponent();

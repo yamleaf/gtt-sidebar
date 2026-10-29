@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace gtt_sidebar.Core.Settings
 {
@@ -12,13 +14,108 @@ namespace gtt_sidebar.Core.Settings
         public SystemMonitorSettings SystemMonitor { get; set; } = new SystemMonitorSettings();
 
         /// <summary>
+        /// 组件（插件）启用状态与顺序。
+        /// </summary>
+        public WidgetSettings Widgets { get; set; } = new WidgetSettings();
+
+        /// <summary>
         /// Validates and corrects all settings
         /// </summary>
         public void ValidateAndCorrect()
         {
             Window?.Validate();
             SystemMonitor?.ValidateAndCorrect();
+            Widgets?.ValidateAndCorrect();
         }
+    }
+
+    /// <summary>
+    /// 组件启用状态与排序配置。
+    ///
+    /// 设计要点：
+    /// - 只存"被管理过"的条目，未出现过的组件视为**启用**（默认全开），
+    ///   这样新增组件时用户无需手动开启即可看到。
+    /// - <see cref="Order"/> 记录用户自定义的先后顺序，值越小越靠上；
+    ///   不在列表中的组件排在后面，并按内置默认顺序兜底。
+    /// </summary>
+    public class WidgetSettings
+    {
+        public List<WidgetState> Items { get; set; } = new List<WidgetState>();
+
+        /// <summary>
+        /// 查询某组件是否启用；未记录时默认启用
+        /// </summary>
+        public bool IsEnabled(string widgetName)
+        {
+            var item = Items?.FirstOrDefault(i =>
+                string.Equals(i.Name, widgetName, StringComparison.OrdinalIgnoreCase));
+            return item == null || item.Enabled;
+        }
+
+        /// <summary>
+        /// 查询某组件的自定义顺序；未记录时返回 int.MaxValue（排到已知项之后）
+        /// </summary>
+        public int GetOrder(string widgetName)
+        {
+            var item = Items?.FirstOrDefault(i =>
+                string.Equals(i.Name, widgetName, StringComparison.OrdinalIgnoreCase));
+            return item?.Order ?? int.MaxValue;
+        }
+
+        /// <summary>
+        /// 写入/更新某组件的启用状态
+        /// </summary>
+        public void SetEnabled(string widgetName, bool enabled)
+        {
+            var item = GetOrCreate(widgetName);
+            item.Enabled = enabled;
+        }
+
+        /// <summary>
+        /// 按排序结果重写全部条目的 Order 字段
+        /// </summary>
+        public void ApplyOrder(IList<string> orderedNames)
+        {
+            for (int i = 0; i < orderedNames.Count; i++)
+            {
+                GetOrCreate(orderedNames[i]).Order = i;
+            }
+        }
+
+        private WidgetState GetOrCreate(string widgetName)
+        {
+            if (Items == null) Items = new List<WidgetState>();
+
+            var item = Items.FirstOrDefault(i =>
+                string.Equals(i.Name, widgetName, StringComparison.OrdinalIgnoreCase));
+            if (item == null)
+            {
+                item = new WidgetState { Name = widgetName, Enabled = true, Order = int.MaxValue };
+                Items.Add(item);
+            }
+            return item;
+        }
+
+        public void ValidateAndCorrect()
+        {
+            if (Items == null) Items = new List<WidgetState>();
+            Items.RemoveAll(i => i == null || string.IsNullOrWhiteSpace(i.Name));
+        }
+    }
+
+    /// <summary>
+    /// 单个组件的持久化状态
+    /// </summary>
+    public class WidgetState
+    {
+        /// <summary>组件标识（对应 IWidget.Name）</summary>
+        public string Name { get; set; }
+
+        /// <summary>是否启用</summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>排序权重，越小越靠上</summary>
+        public int Order { get; set; } = int.MaxValue;
     }
 
     /// <summary>
@@ -27,7 +124,7 @@ namespace gtt_sidebar.Core.Settings
     public class WindowSettings
     {
         public SidebarPosition Position { get; set; } = SidebarPosition.Right;
-        public double Width { get; set; } = 122;
+        public double Width { get; set; } = 144;
         public double MarginTop { get; set; } = 5;
         public double MarginBottom { get; set; } = 5;
         public double MarginSide { get; set; } = 5;
@@ -60,6 +157,23 @@ namespace gtt_sidebar.Core.Settings
         public double AutoHideEdgeBottomRatio { get; set; } = 0.15;
 
         /// <summary>
+        /// 收起方式：true = 收缩为悬浮球（点击/悬停展开）；
+        /// false = 传统贴边滑出（仅留 Peek 像素）
+        /// </summary>
+        public bool UseFloatingBall { get; set; } = true;
+
+        /// <summary>
+        /// 悬浮球的垂直中心位置（屏幕坐标，WPF 逻辑像素）。
+        /// NaN 表示尚未定位，此时按边缘感应区中点自动计算。
+        /// </summary>
+        public double FloatingBallY { get; set; } = double.NaN;
+
+        /// <summary>
+        /// 悬浮球直径（像素）。实际渲染时窗口比球大 4px，用于容纳投影与悬停光环。
+        /// </summary>
+        public double FloatingBallSize { get; set; } = 40;
+
+        /// <summary>
         /// Validates that all settings are within reasonable bounds
         /// </summary>
         public bool IsValid()
@@ -71,7 +185,8 @@ namespace gtt_sidebar.Core.Settings
                    AutoHideDelayMs >= 0 && AutoHideDelayMs <= 3000 &&
                    AutoHidePeekPx >= 0 && AutoHidePeekPx <= 20 &&
                    AutoHideEdgeTopRatio >= 0 && AutoHideEdgeTopRatio <= 0.5 &&
-                   AutoHideEdgeBottomRatio >= 0 && AutoHideEdgeBottomRatio <= 0.5;
+                   AutoHideEdgeBottomRatio >= 0 && AutoHideEdgeBottomRatio <= 0.5 &&
+                   FloatingBallSize >= 28 && FloatingBallSize <= 80;
         }
 
         /// <summary>
@@ -87,6 +202,7 @@ namespace gtt_sidebar.Core.Settings
             AutoHidePeekPx = Math.Max(0, Math.Min(20, AutoHidePeekPx));
             AutoHideEdgeTopRatio = Math.Max(0, Math.Min(0.5, AutoHideEdgeTopRatio));
             AutoHideEdgeBottomRatio = Math.Max(0, Math.Min(0.5, AutoHideEdgeBottomRatio));
+            FloatingBallSize = Math.Max(28, Math.Min(80, FloatingBallSize));
 
             // 顶+底留白不能把感应区挤没了（至少保留 20% 高度可触发）
             if (AutoHideEdgeTopRatio + AutoHideEdgeBottomRatio > 0.8)

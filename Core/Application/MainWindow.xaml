@@ -3,52 +3,61 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Icon="/gtt-sidebar-icon.ico"
         Title="桌面侧边栏"
-        Width="122"
+        Width="144"
         WindowStyle="None"
         ResizeMode="NoResize"
         Topmost="True"
         ShowInTaskbar="False"
-        Background="White"
+        Background="{StaticResource WindowBackground}"
         BorderThickness="1"
-        BorderBrush="#E0E0E0">
+        BorderBrush="{StaticResource BorderSubtle}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="ClearType">
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
-            <!-- Widgets -->
-            <RowDefinition Height="20"/>
-            <!-- Footer -->
+            <!-- 组件区 -->
+            <RowDefinition Height="Auto"/>
+            <!-- 底栏 -->
         </Grid.RowDefinitions>
 
-        <!-- Widgets Container（可滚动：组件较多或屏幕较小时不会丢失内容） -->
+        <!-- 组件区：可滚动，组件多时不会丢失内容 -->
         <ScrollViewer Grid.Row="0"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
-                      Padding="0">
+                      Padding="0"
+                      Margin="0"
+                      Style="{x:Null}">
             <StackPanel x:Name="WidgetContainer"
                         Orientation="Vertical"
-                        Margin="3">
+                        Margin="8,8,8,4">
             </StackPanel>
         </ScrollViewer>
 
-        <!-- Footer -->
-        <Border Grid.Row="1" 
-                Background="#F0F0F0" 
-                BorderBrush="#E0E0E0" 
+        <!-- 底栏：设置入口。用图标按钮 + 悬停反馈，比之前裸露的齿轮更克制 -->
+        <Border Grid.Row="1"
+                Background="Transparent"
+                BorderBrush="{StaticResource BorderSubtle}"
                 BorderThickness="0,1,0,0">
-            <Button x:Name="SettingsButton" 
-                    Content="⚙️" 
-                    Width="16" Height="16"
-                    FontSize="10"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    Foreground="#666666"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Margin="0,0,4,0"
-                    ToolTip="设置"
-                    Cursor="Hand"
-                    Click="SettingsButton_Click"/>
+            <Grid Height="30">
+                <Button x:Name="SettingsButton"
+                        Style="{StaticResource IconButton}"
+                        Width="26" Height="22"
+                        HorizontalAlignment="Right"
+                        Margin="0,0,6,0"
+                        ToolTip="设置"
+                        Click="SettingsButton_Click">
+                    <Path Data="M 8,0.6 L 9.4,0.6 L 9.75,2.35 C 10.35,2.55 10.9,2.85 11.4,3.2 L 13.1,2.6 L 13.85,3.9 L 12.6,5.2 C 12.7,5.8 12.7,6.2 12.6,6.8 L 13.85,8.1 L 13.1,9.4 L 11.4,8.8 C 10.9,9.15 10.35,9.45 9.75,9.65 L 9.4,11.4 L 8,11.4 L 7.65,9.65 C 7.05,9.45 6.5,9.15 6,8.8 L 4.3,9.4 L 3.55,8.1 L 4.8,6.8 C 4.7,6.2 4.7,5.8 4.8,5.2 L 3.55,3.9 L 4.3,2.6 L 6,3.2 C 6.5,2.85 7.05,2.55 7.65,2.35 Z"
+                          Stroke="{StaticResource TextTertiary}"
+                          StrokeThickness="1.1"
+                          Fill="Transparent"
+                          Stretch="Uniform"
+                          Width="13" Height="13"
+                          StrokeLineJoin="Round"/>
+                </Button>
+            </Grid>
         </Border>
     </Grid>
 </Window>
