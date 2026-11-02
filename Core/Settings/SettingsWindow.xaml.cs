@@ -15,7 +15,7 @@ namespace gtt_sidebar.Core.Settings
     public partial class SettingsWindow : Window
     {
         public event Action ShortcutsChanged;
-        public event Action SystemMonitorSettingsChanged;
+        // SystemMonitorSettingsChanged 已移除：阈值/刷新率变更统一经 SharedResourceManager 通知
 
         /// <summary>
         /// 组件启用状态或顺序变更（即时生效，由主窗口重建组件区）
@@ -25,12 +25,6 @@ namespace gtt_sidebar.Core.Settings
         private SettingsData _currentSettings;
         private ShortcutsData _shortcutsData;
         private Dictionary<string, Border> _shortcutCards = new Dictionary<string, Border>();
-        private bool _isDragging = false;
-        // Add these fields to the existing private fields in SettingsWindow class
-        private Border _draggedCard = null;
-        private Point _dragStartPoint;
-        private int _draggedIndex = -1;
-        private int _dropIndex = -1;
 
         public event Action<SettingsData> SettingsApplied;
 
@@ -884,12 +878,12 @@ namespace gtt_sidebar.Core.Settings
 
             if (card != null)
             {
-                // Use the existing helper method that finds by content (💾)
-                var saveButton = FindChildByContent<Button>(card, "💾");
+                // v2.0 起保存按钮是自绘几何对勾图标（无文字 Content），
+                // 旧版按 emoji "💾" 查找的逻辑已失效，改为按 ToolTip 查找。
+                var saveButton = FindChildByToolTip<Button>(card, "保存修改");
                 if (saveButton != null)
                 {
                     saveButton.IsEnabled = true;
-                    saveButton.Background = new SolidColorBrush(Color.FromRgb(40, 167, 69)); // Green when enabled
                 }
             }
         }
@@ -1047,37 +1041,28 @@ namespace gtt_sidebar.Core.Settings
             if (_shortcutCards.ContainsKey(shortcutId))
             {
                 var card = _shortcutCards[shortcutId];
-                var saveButton = FindSaveButtonInCard(card);
+                var saveButton = FindChildByToolTip<Button>(card, "保存修改");
                 if (saveButton != null)
                 {
                     saveButton.IsEnabled = true;
-                    saveButton.Background = new SolidColorBrush(Color.FromRgb(40, 167, 69));
                 }
             }
         }
 
         /// <summary>
-        /// Helper to find save button in a card
+        /// 在可视树中按 ToolTip 查找控件。
+        /// 自绘模板按钮的 Content 为空（Path 画在模板里），只能靠 ToolTip 区分。
         /// </summary>
-        private Button FindSaveButtonInCard(Border card)
-        {
-            // Walk the visual tree to find the save button (has disk emoji)
-            return FindChildByContent<Button>(card, "💾");
-        }
-
-        /// <summary>
-        /// Find child by content
-        /// </summary>
-        private T FindChildByContent<T>(DependencyObject parent, string content) where T : ContentControl
+        private T FindChildByToolTip<T>(DependencyObject parent, string tooltip) where T : FrameworkElement
         {
             for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
             {
                 var child = VisualTreeHelper.GetChild(parent, i);
 
-                if (child is T element && element.Content?.ToString() == content)
+                if (child is T element && element.ToolTip?.ToString() == tooltip)
                     return element;
 
-                var found = FindChildByContent<T>(child, content);
+                var found = FindChildByToolTip<T>(child, tooltip);
                 if (found != null)
                     return found;
             }
@@ -1123,9 +1108,9 @@ namespace gtt_sidebar.Core.Settings
                         // Save to storage
                         SharedResourceManager.Instance.QueueSave("shortcuts", _shortcutsData);
 
-                        // Disable save button
+                        // Disable save button（自绘模板自带 IsEnabled=False 的置灰触发器，
+                        // 直接改 Background 无效也无需改）
                         button.IsEnabled = false;
-                        button.Background = new SolidColorBrush(Color.FromRgb(108, 117, 125)); // Gray when disabled
                         ShortcutsChanged?.Invoke();
                         System.Diagnostics.Debug.WriteLine($"Saved shortcut: {shortcut.Label} -> {shortcut.Path}");
                     }
@@ -1221,30 +1206,6 @@ namespace gtt_sidebar.Core.Settings
                                MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
-        /// <summary>
-        /// Helper method to find child controls by type and tag
-        /// </summary>
-        private T FindChildByTag<T>(DependencyObject parent, string tag) where T : FrameworkElement
-        {
-            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
-            {
-                var child = VisualTreeHelper.GetChild(parent, i);
-
-                if (child is T element && element.Tag?.ToString() == tag)
-                    return element;
-
-                var found = FindChildByTag<T>(child, tag);
-                if (found != null)
-                    return found;
-            }
-            return null;
-        }
-
-  
-        
-        
-
 
         private SettingsData CloneSettings(SettingsData settings)
         {
@@ -1343,106 +1304,13 @@ namespace gtt_sidebar.Core.Settings
             RightPositionRadio.IsChecked = _currentSettings.Window.Position == SidebarPosition.Right;
             LeftPositionRadio.IsChecked = _currentSettings.Window.Position == SidebarPosition.Left;
 
-            // Width
-            WidthSlider.Value = _currentSettings.Window.Width;
-            WidthValueText.Text = $"{_currentSettings.Window.Width:F0} px";
-
-            // Margins
-            MarginTopSlider.Value = _currentSettings.Window.MarginTop;
-            MarginTopValueText.Text = $"{_currentSettings.Window.MarginTop:F0} px";
-
-            MarginBottomSlider.Value = _currentSettings.Window.MarginBottom;
-            MarginBottomValueText.Text = $"{_currentSettings.Window.MarginBottom:F0} px";
-
-            MarginSideSlider.Value = _currentSettings.Window.MarginSide;
-            MarginSideValueText.Text = $"{_currentSettings.Window.MarginSide:F0} px";
-
-            // 自动隐藏设置
-            AutoHideCheckBox.IsChecked = _currentSettings.Window.AutoHideOnFocusLost;
-            AutoHideDelaySlider.Value = _currentSettings.Window.AutoHideDelayMs;
-            AutoHideDelayValueText.Text = $"{(int)_currentSettings.Window.AutoHideDelayMs} ms";
-
-            AutoHideEdgeTopSlider.Value = _currentSettings.Window.AutoHideEdgeTopRatio * 100;
-            AutoHideEdgeTopValueText.Text = $"{(int)(_currentSettings.Window.AutoHideEdgeTopRatio * 100)}%";
-
-            AutoHideEdgeBottomSlider.Value = _currentSettings.Window.AutoHideEdgeBottomRatio * 100;
-            AutoHideEdgeBottomValueText.Text = $"{(int)(_currentSettings.Window.AutoHideEdgeBottomRatio * 100)}%";
-
-            // 收起方式：悬浮球
-            if (FloatingBallCheckBox != null)
-            {
-                FloatingBallCheckBox.IsChecked = _currentSettings.Window.UseFloatingBall;
-            }
-
-            UpdateAutoHideControlsEnabled();
-
+            // 自动隐藏与收起方式不再由设置窗口管理：
+            // 悬浮球为固定收起形态，行为参数（延迟/留白等）使用配置默认值；
+            // 托盘菜单仍保留「失去焦点自动隐藏」开关。
             LoadSystemMonitorSettingsToUI();
 
             // 组件（插件）管理列表
             RefreshWidgetsList();
-        }
-
-        /// <summary>
-        /// 未启用自动隐藏时，相关滑块置灰
-        /// </summary>
-        private void UpdateAutoHideControlsEnabled()
-        {
-            var enabled = AutoHideCheckBox.IsChecked == true;
-            if (AutoHideDelaySlider != null) AutoHideDelaySlider.IsEnabled = enabled;
-            if (AutoHideEdgeTopSlider != null) AutoHideEdgeTopSlider.IsEnabled = enabled;
-            if (AutoHideEdgeBottomSlider != null) AutoHideEdgeBottomSlider.IsEnabled = enabled;
-        }
-
-        private void AutoHideCheckBox_Changed(object sender, RoutedEventArgs e)
-        {
-            UpdateAutoHideControlsEnabled();
-        }
-
-        /// <summary>
-        /// 切换收起方式：悬浮球 / 传统贴边。
-        /// 同时联动贴边相关滑块的可编辑性——悬浮球模式下它们仍用于计算球的默认位置，
-        /// 所以保持可用，不做置灰。
-        /// </summary>
-        private void FloatingBallCheckBox_Changed(object sender, RoutedEventArgs e)
-        {
-            UpdateAutoHideControlsEnabled();
-        }
-
-        private void AutoHideDelaySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (AutoHideDelayValueText != null)
-            {
-                AutoHideDelayValueText.Text = $"{(int)e.NewValue} ms";
-            }
-        }
-
-        private void AutoHideEdgeTopSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (AutoHideEdgeTopValueText != null)
-            {
-                AutoHideEdgeTopValueText.Text = $"{(int)e.NewValue}%";
-            }
-
-            // 顶 + 底留白不能把感应区挤没（至少留 20%）
-            if (AutoHideEdgeBottomSlider != null &&
-                e.NewValue + AutoHideEdgeBottomSlider.Value > 80)
-            {
-                AutoHideEdgeBottomSlider.Value = Math.Max(0, 80 - e.NewValue);
-            }
-        }
-
-        private void AutoHideEdgeBottomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (AutoHideEdgeBottomValueText != null)
-            {
-                AutoHideEdgeBottomValueText.Text = $"{(int)e.NewValue}%";
-            }
-
-            if (AutoHideEdgeTopSlider != null &&
-                e.NewValue + AutoHideEdgeTopSlider.Value > 80)
-            {
-                AutoHideEdgeTopSlider.Value = Math.Max(0, 80 - e.NewValue);
-            }
         }
 
         private void LoadSystemMonitorSettingsToUI()
@@ -1482,19 +1350,11 @@ namespace gtt_sidebar.Core.Settings
                 ? SidebarPosition.Right
                 : SidebarPosition.Left;
 
-            // Width
-            _currentSettings.Window.Width = WidthSlider.Value;
+            // 宽度与边距不再由设置窗口管理（144px 设计基准 + 默认边距），
+            // 保留 _currentSettings 中从磁盘读到的原值。
 
-            // Margins
-            _currentSettings.Window.MarginTop = MarginTopSlider.Value;
-            _currentSettings.Window.MarginBottom = MarginBottomSlider.Value;
-            _currentSettings.Window.MarginSide = MarginSideSlider.Value;
-
-            // 自动隐藏
-            _currentSettings.Window.AutoHideOnFocusLost = AutoHideCheckBox.IsChecked == true;
-            _currentSettings.Window.AutoHideDelayMs = (int)AutoHideDelaySlider.Value;
-            _currentSettings.Window.AutoHideEdgeTopRatio = AutoHideEdgeTopSlider.Value / 100.0;
-            _currentSettings.Window.AutoHideEdgeBottomRatio = AutoHideEdgeBottomSlider.Value / 100.0;
+            // 自动隐藏与收起方式同样不再由设置窗口管理，
+            // _currentSettings 中从磁盘读到的原值原样保留（托盘菜单开关仍可用）。
 
             UpdateSystemMonitorSettings();
 
@@ -1522,82 +1382,6 @@ namespace gtt_sidebar.Core.Settings
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Settings: Error updating System Monitor settings: {ex.Message}");
-            }
-        }
-
-        private void WidthSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (WidthValueText != null)
-            {
-                WidthValueText.Text = $"{e.NewValue:F0} px";
-                ValidateCurrentValues();
-            }
-        }
-
-        private void MarginTopSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (MarginTopValueText != null)
-            {
-                MarginTopValueText.Text = $"{e.NewValue:F0} px";
-                ValidateCurrentValues();
-            }
-        }
-
-        private void MarginBottomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (MarginBottomValueText != null)
-            {
-                MarginBottomValueText.Text = $"{e.NewValue:F0} px";
-                ValidateCurrentValues();
-            }
-        }
-
-        private void MarginSideSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (MarginSideValueText != null)
-            {
-                MarginSideValueText.Text = $"{e.NewValue:F0} px";
-                ValidateCurrentValues();
-            }
-        }
-
-        private void ValidateCurrentValues()
-        {
-            // Ensure all sliders are initialized
-            if (WidthSlider == null || MarginTopSlider == null ||
-                MarginBottomSlider == null || MarginSideSlider == null ||
-                ValidationText == null || ApplyButton == null)
-                return;
-
-            var hasErrors = false;
-            var errorMessage = "";
-
-            // Check width
-            if (WidthSlider.Value < 100 || WidthSlider.Value > 200)
-            {
-                hasErrors = true;
-                errorMessage = "宽度必须在 100-200 像素之间";
-            }
-
-            // Check margins
-            if (MarginTopSlider.Value < 0 || MarginTopSlider.Value > 50 ||
-                MarginBottomSlider.Value < 0 || MarginBottomSlider.Value > 50 ||
-                MarginSideSlider.Value < 0 || MarginSideSlider.Value > 50)
-            {
-                hasErrors = true;
-                errorMessage = "边距必须在 0-50 像素之间";
-            }
-
-            if (hasErrors)
-            {
-                ValidationText.Text = errorMessage;
-                ValidationText.Visibility = Visibility.Visible;
-                ApplyButton.IsEnabled = false;
-            }
-            else
-            {
-                ValidationText.Visibility = Visibility.Collapsed;
-                ApplyButton.IsEnabled = true;
             }
         }
 

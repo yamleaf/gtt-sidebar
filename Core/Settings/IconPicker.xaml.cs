@@ -168,10 +168,10 @@ namespace gtt_sidebar.Core.Settings
                 {
                     // In project build output directory
                     Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Core", "Icons", "DefaultIcons", $"{iconName}.png"),
-                    
+
                     // In AppData (where other data is stored)
                     Path.Combine(gtt_sidebar.Core.AppPaths.DefaultIconsPath, $"{iconName}.png"),
-                    
+
                     // Relative to executable
                     Path.Combine("Core", "Icons", "DefaultIcons", $"{iconName}.png"),
                     // Direct in executable directory
@@ -179,7 +179,7 @@ namespace gtt_sidebar.Core.Settings
                     Path.Combine(gtt_sidebar.Core.AppPaths.IconsPath, $"{iconName}.png"),
                     Path.Combine(gtt_sidebar.Core.AppPaths.IconsPath, $"{iconName}.svg")
 
-                    
+
                 };
 
                 foreach (var path in possiblePaths)

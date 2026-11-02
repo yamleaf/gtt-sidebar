@@ -86,15 +86,13 @@
     <Compile Include="Core\Settings\ShortcutStorage.cs" />
     <Compile Include="Widgets\Notes\NotesData.cs" />
     <Compile Include="Widgets\Notes\NotesStorage.cs" />
-    <Compile Include="Widgets\Notes\MarkdownHelper.cs" />
     <Compile Include="Widgets\Notes\NotesPopup.xaml.cs">
       <DependentUpon>NotesPopup.xaml</DependentUpon>
     </Compile>
     <Compile Include="Widgets\Shortcuts\ShortcutsWidget.xaml.cs">
       <DependentUpon>ShortcutsWidget.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Core\Interfaces\IConfigurableWidget.cs" />
-    <Compile Include="Core\Interfaces\IWidgetMetadata.cs" />
+    <Compile Include="Core\Application\TrayMenuBuilder.cs" />
     <Compile Include="Core\Managers\WidgetManager.cs" />
     <Compile Include="Core\Managers\WindowPositioner.cs" />
     <Compile Include="Widgets\ClockWidget\ClockWidget.xaml.cs">

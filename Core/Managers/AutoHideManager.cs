@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
@@ -30,7 +31,25 @@ namespace gtt_sidebar.Core.Managers
         private bool _isHidden;                  // 当前是否处于隐藏（滑出屏幕 / 已收缩为悬浮球）状态
         private bool _isAnimating;               // 动画进行中，避免互相打断
         private double _shownLeft;               // 显示状态下的 Left
-        private int _suppressCount;              // 抑制计数（弹窗/设置窗口打开期间不隐藏）
+
+        /// <summary>
+        /// 抑制自动隐藏的持有者集合（弹窗 / 设置窗口等）。
+        ///
+        /// 用"具名集合"而不是裸计数，是因为裸计数对"多调一次 Suppress"极其脆弱：
+        /// 任何一处漏配对（例如备注弹窗复用时只抑制未恢复、弹窗失焦自隐藏而不触发 Closed），
+        /// 计数就会永久 ≥1，自动隐藏从此静默失效，且没有任何痕迹可查。
+        /// 改成集合后，同名重复抑制天然幂等，只有显式 Release 才移除。
+        /// </summary>
+        private readonly HashSet<string> _suppressHolders = new HashSet<string>();
+
+        /// <summary>每个持有者的抑制开始时刻，用于超时告警</summary>
+        private readonly Dictionary<string, DateTime> _suppressSince = new Dictionary<string, DateTime>();
+
+        /// <summary>抑制持有的告警阈值：超过这个时长仍未释放，输出一次告警日志</summary>
+        private const int SUPPRESS_WARN_MS = 30 * 60 * 1000;
+
+        /// <summary>当前是否存在抑制持有者</summary>
+        private bool IsSuppressed => _suppressHolders.Count > 0;
         private DateTime _pointerLeftAt;         // 鼠标离开“边缘+窗口”区域的时刻
         private bool _pointerInside;             // 上一轮鼠标是否在窗口内
         private bool _pointerInEdgeZone;         // 上一轮鼠标是否处于边缘感应区
@@ -78,22 +97,63 @@ namespace gtt_sidebar.Core.Managers
         public event Action<bool> HiddenStateChanged;
 
         /// <summary>
-        /// 临时抑制自动隐藏（例如备注弹窗、设置窗口打开期间），支持嵌套
+        /// 临时抑制自动隐藏（例如备注弹窗、设置窗口打开期间）。
+        ///
+        /// 语义为**具名持有**：同一个 holder 重复调用不会累加，必须 ReleaseAutoHide 才会解除。
+        /// 这样无论调用方是否重复调用、是否在异常路径上多调一次，都不会造成永久生效。
         /// </summary>
-        public void SuppressAutoHide()
+        public void SuppressAutoHide(string holder)
         {
-            _suppressCount++;
+            if (string.IsNullOrEmpty(holder)) holder = "unknown";
+
+            var isNewHolder = _suppressHolders.Add(holder);
+            _suppressSince[holder] = DateTime.Now;
+
+            if (isNewHolder)
+            {
+                Log($"Suppress +{holder} → 持有者 {_suppressHolders.Count}");
+            }
 
             // 若已经隐藏，立刻滑回，避免操作目标消失
             if (_isHidden && !_isAnimating) ShowSidebar(true);
         }
 
         /// <summary>
-        /// 解除抑制
+        /// 解除抑制（按持有者名移除）
         /// </summary>
-        public void ResumeAutoHide()
+        public void ReleaseAutoHide(string holder)
         {
-            if (_suppressCount > 0) _suppressCount--;
+            if (string.IsNullOrEmpty(holder)) holder = "unknown";
+
+            var removed = _suppressHolders.Remove(holder);
+            _suppressSince.Remove(holder);
+
+            if (removed)
+            {
+                Log($"Release -{holder} → 剩余持有者 {_suppressHolders.Count}");
+            }
+        }
+
+        /// <summary>
+        /// 诊断日志：同时写 Debug 输出与 autohide.log，
+        /// 这样即便没有接调试器也能在 %APPDATA%/DesktopSidebar/autohide.log 里复核抑制状态。
+        /// </summary>
+        private static void Log(string msg)
+        {
+            var line = $"[{DateTime.Now:HH:mm:ss.fff}] {msg}";
+            System.Diagnostics.Debug.WriteLine("[AutoHide] " + line);
+
+            try
+            {
+                System.IO.Directory.CreateDirectory(AppPaths.AppDataPath);
+                System.IO.File.AppendAllText(
+                    System.IO.Path.Combine(AppPaths.AppDataPath, "autohide.log"),
+                    line + Environment.NewLine);
+            }
+            catch
+            {
+                // 日志失败不影响主流程
+            }
         }
 
         /// <summary>
@@ -417,6 +477,7 @@ namespace gtt_sidebar.Core.Managers
 
             _isHidden = true;
             _lastCollapsedAt = DateTime.Now;
+            Log($"HideSidebar（悬浮球={UseBall}）");
 
             if (UseBall)
             {
@@ -500,6 +561,9 @@ namespace gtt_sidebar.Core.Managers
             // 动画进行中不做决策，等动画结束后的下一轮再说
             if (_isAnimating) return;
 
+            // 看门狗：抑制持有过久说明有组件漏了 Release（否则自动隐藏会静默失效）
+            CheckSuppressTimeouts();
+
             // 悬浮球模式：收起/展开由球体自身的 MouseEnter / Click 驱动，
             // 这里只负责"何时收起"，不做边缘区唤回（避免与球体事件语义重叠）
             if (UseBall)
@@ -550,7 +614,7 @@ namespace gtt_sidebar.Core.Managers
 
             // 以下判断“是否可以开始隐藏倒计时”
             if (!_settings.AutoHideOnFocusLost) return;
-            if (_suppressCount > 0) return;                       // 设置窗口/弹窗打开期间不隐藏
+            if (IsSuppressed) return;                             // 设置窗口/弹窗打开期间不隐藏
             if (_window.WindowState != WindowState.Normal) return;
             if (!_window.IsVisible) return;
 
@@ -611,7 +675,7 @@ namespace gtt_sidebar.Core.Managers
             if (pointerInside) return;
 
             if (!_settings.AutoHideOnFocusLost) return;
-            if (_suppressCount > 0) return;                       // 设置窗口/弹窗打开期间不收起
+            if (IsSuppressed) return;                             // 设置窗口/弹窗打开期间不收起
             if (_window.WindowState != WindowState.Normal) return;
             if (!_window.IsVisible) return;
 
@@ -634,6 +698,29 @@ namespace gtt_sidebar.Core.Managers
             if (idleMs >= Math.Max(0, _settings.AutoHideDelayMs))
             {
                 HideSidebar();
+            }
+        }
+
+        /// <summary>
+        /// 抑制持有超时巡检：若某个持有者长时间不释放，输出告警（每个持有者只报一次）。
+        /// 这是"防静默失效"的看门狗——正常使用时抑制都很短，
+        /// 一旦日志里出现这条，说明某组件漏了 Release。
+        /// </summary>
+        private void CheckSuppressTimeouts()
+        {
+            if (_suppressHolders.Count == 0) return;
+
+            var now = DateTime.Now;
+            foreach (var holder in _suppressHolders)
+            {
+                DateTime since;
+                if (!_suppressSince.TryGetValue(holder, out since)) continue;
+
+                if ((now - since).TotalMilliseconds < SUPPRESS_WARN_MS) continue;
+
+                // 只告警一次：把时间戳往后推，避免每 120ms 刷屏
+                _suppressSince[holder] = now;
+                Log($"WARNING 抑制持有者 '{holder}' 已持续超过 {SUPPRESS_WARN_MS / 60000} 分钟未释放，自动隐藏将无法生效。持有者列表: {string.Join(",", _suppressHolders)}");
             }
         }
 
@@ -742,6 +829,10 @@ namespace gtt_sidebar.Core.Managers
                 _watchTimer.Tick -= WatchTimer_Tick;
                 _watchTimer = null;
             }
+
+            // 退出前清空抑制持有，避免残留状态影响下次启动的日志判断
+            _suppressHolders.Clear();
+            _suppressSince.Clear();
 
             DestroyBallWindow();
         }

@@ -14,6 +14,12 @@ namespace gtt_sidebar.Widgets.Notes
         private NotesData _notesData;
         private NotesPopup _popup;
 
+        /// <summary>抑制自动隐藏时使用的持有者名（与 AutoHideManager 中的具名持有对应）</summary>
+        private const string AutoHideHolder = "notes-popup";
+
+        /// <summary>本地幂等标志：只在 true→false / false→true 时真正通知主窗口</summary>
+        private bool _autoHideSuppressed;
+
         public new string Name => "Notes";
 
         public string DisplayName => "备注";
@@ -119,8 +125,9 @@ namespace gtt_sidebar.Widgets.Notes
                 // Get main window reference once
                 var mainWindow = Application.Current.MainWindow;
 
-                // 弹窗打开期间抑制侧边栏自动隐藏，避免操作到一半侧边栏消失
-                SuppressAutoHide(mainWindow);
+                // 弹窗打开期间抑制侧边栏自动隐藏，避免操作到一半侧边栏消失。
+                // 幂等：重复点击备注卡片不会累积，只有真正隐藏/关闭弹窗才释放。
+                SetAutoHideSuppressed(mainWindow, true);
 
                 // If popup exists but is hidden, just show it
                 if (_popup != null)
@@ -134,8 +141,7 @@ namespace gtt_sidebar.Widgets.Notes
                         _popup.PositionRelativeToSidebar(mainWindow);
                     }
 
-                    _popup.Show();
-                    _popup.Activate();
+                    _popup.ShowAndActivate();
                     return;
                 }
 
@@ -143,16 +149,22 @@ namespace gtt_sidebar.Widgets.Notes
                 _popup = new NotesPopup(_notesData);
                 _popup.NotesChanged += OnNotesChanged;
 
+                // 弹窗每次真正隐藏都要释放抑制；关闭则彻底释放并解引用。
+                // 注意：NotesPopup 失焦时是 Hide() 而不是 Close()，旧代码只挂 Closed，
+                // 导致"弹窗失焦自隐藏 → 抑制永不释放 → 侧边栏再也不自动收起"。
+                _popup.Hidden += OnPopupHidden;
+
                 // Handle popup closing to set it to null
                 _popup.Closed += (s, e) =>
                 {
                     if (_popup != null)
                     {
                         _popup.NotesChanged -= OnNotesChanged;
+                        _popup.Hidden -= OnPopupHidden;
                         _popup = null;
                     }
-                    // 弹窗关闭后恢复自动隐藏
-                    ResumeAutoHide(mainWindow);
+                    // 弹窗关闭后恢复自动隐藏（幂等，重复释放无副作用）
+                    SetAutoHideSuppressed(mainWindow, false);
                 };
 
                 // Position popup relative to sidebar
@@ -162,15 +174,22 @@ namespace gtt_sidebar.Widgets.Notes
                 }
 
                 // Show popup
-                _popup.Show();
-                _popup.Activate();
+                _popup.ShowAndActivate();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error opening notes popup: {ex.Message}");
+                // 异常路径同样要释放抑制，否则一次失败就会让自动隐藏永久失效
+                SetAutoHideSuppressed(Application.Current.MainWindow, false);
                 MessageBox.Show($"打开备注失败：{ex.Message}", "备注错误",
                               MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+        }
+
+        /// <summary>弹窗隐藏（失焦自隐藏 / ESC）时释放自动隐藏抑制</summary>
+        private void OnPopupHidden()
+        {
+            SetAutoHideSuppressed(Application.Current.MainWindow, false);
         }
 
         private void OnNotesChanged(NotesData updatedNotesData)
@@ -183,19 +202,25 @@ namespace gtt_sidebar.Widgets.Notes
         }
 
         /// <summary>
-        /// 通知主窗口抑制自动隐藏
+        /// 设置/解除自动隐藏抑制（本地幂等，避免重复调用把计数带偏）
         /// </summary>
-        private void SuppressAutoHide(Window mainWindow)
+        private void SetAutoHideSuppressed(Window mainWindow, bool suppressed)
         {
-            (mainWindow as gtt_sidebar.Core.Application.MainWindow)?.SuppressAutoHide();
-        }
+            if (_autoHideSuppressed == suppressed) return;
 
-        /// <summary>
-        /// 通知主窗口恢复自动隐藏
-        /// </summary>
-        private void ResumeAutoHide(Window mainWindow)
-        {
-            (mainWindow as gtt_sidebar.Core.Application.MainWindow)?.ResumeAutoHide();
+            var host = mainWindow as gtt_sidebar.Core.Application.MainWindow;
+            if (host == null) return;
+
+            if (suppressed)
+            {
+                host.SuppressAutoHide(AutoHideHolder);
+                _autoHideSuppressed = true;
+            }
+            else
+            {
+                host.ReleaseAutoHide(AutoHideHolder);
+                _autoHideSuppressed = false;
+            }
         }
 
         public void Dispose()
@@ -212,6 +237,7 @@ namespace gtt_sidebar.Widgets.Notes
                 if (_popup != null)
                 {
                     _popup.NotesChanged -= OnNotesChanged;
+                    _popup.Hidden -= OnPopupHidden;
 
                     // Force close popup if it's still open
                     if (_popup.IsVisible)
@@ -223,80 +249,15 @@ namespace gtt_sidebar.Widgets.Notes
                     _popup = null;
                 }
 
+                // 兜底：组件被重建/销毁时不留下悬挂的抑制持有
+                SetAutoHideSuppressed(Application.Current.MainWindow, false);
+
                 // Clear references
                 _notesData = null;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error disposing NotesWidget: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Force refresh the preview (useful if notes were modified externally)
-        /// </summary>
-        public void RefreshPreview()
-        {
-            try
-            {
-                _notesData = NotesStorage.LoadNotes();
-                UpdatePreview();
-
-                // If popup is open, update it too
-                if (_popup != null && _popup.IsVisible)
-                {
-                    _popup.UpdateNotesData(_notesData);
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error refreshing notes preview: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Gets current notes data (for debugging or external access)
-        /// </summary>
-        public NotesData GetNotesData()
-        {
-            return _notesData;
-        }
-
-        /// <summary>
-        /// Manually trigger save (useful for external calls)
-        /// </summary>
-        public bool SaveNotes()
-        {
-            try
-            {
-                if (_notesData != null)
-                {
-                    return NotesStorage.SaveNotes(_notesData);
-                }
-                return false;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error manually saving notes: {ex.Message}");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Closes the popup if it's open (useful for external calls)
-        /// </summary>
-        public void ClosePopup()
-        {
-            try
-            {
-                if (_popup != null && _popup.IsVisible)
-                {
-                    _popup.Hide();
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error closing popup: {ex.Message}");
             }
         }
     }

@@ -31,6 +31,8 @@ namespace gtt_sidebar.Core.Application
 
             // 自动隐藏管理器必须先于 ApplySettings 创建，否则无法记录显示位置
             _autoHide = new AutoHideManager(this);
+            // 收起/展开时同步托盘菜单的「显示/收起」文案
+            _autoHide.HiddenStateChanged += _ => Dispatcher.BeginInvoke(new Action(UpdateTrayMenuChecks));
             // 悬浮球右键菜单需要回调到主窗口
             _autoHide.SetBallCallbacks(
                 () => SettingsButton_Click(null, null),
@@ -38,7 +40,8 @@ namespace gtt_sidebar.Core.Application
             ApplySettings(_currentSettings);
             _autoHide.ApplySettings(_currentSettings);
 
-            var resourceManager = SharedResourceManager.Instance;
+            // 提前初始化共享资源管理器（组件会在 InitializeWidgetsAsync 中用到它）
+            _ = SharedResourceManager.Instance;
 
             _widgetManager = new WidgetManager();
             LoadWidgets();
@@ -49,7 +52,6 @@ namespace gtt_sidebar.Core.Application
 
             // Create tray icon AFTER window is shown
             Dispatcher.BeginInvoke(new Action(CreateTrayIcon), DispatcherPriority.Background);
-
         }
 
         private void MainWindow_Activated(object sender, EventArgs e)
@@ -66,19 +68,20 @@ namespace gtt_sidebar.Core.Application
         }
 
         /// <summary>
-        /// 供子窗口（备注弹窗、图标选择器等）在打开期间抑制自动隐藏
+        /// 供子窗口（备注弹窗、图标选择器等）在打开期间抑制自动隐藏。
+        /// holder 必须是稳定的组件名（如 "notes-popup"、"settings"），同名重复调用幂等。
         /// </summary>
-        public void SuppressAutoHide()
+        public void SuppressAutoHide(string holder)
         {
-            _autoHide?.SuppressAutoHide();
+            _autoHide?.SuppressAutoHide(holder);
         }
 
         /// <summary>
-        /// 解除自动隐藏抑制
+        /// 解除自动隐藏抑制（holder 需与 Suppress 时一致）
         /// </summary>
-        public void ResumeAutoHide()
+        public void ReleaseAutoHide(string holder)
         {
-            _autoHide?.ResumeAutoHide();
+            _autoHide?.ReleaseAutoHide(holder);
         }
 
         private void CreateTrayIcon()
@@ -105,23 +108,28 @@ namespace gtt_sidebar.Core.Application
             _trayIcon.Text = "桌面侧边栏";
             _trayIcon.Visible = true;
 
-            var contextMenu = new ContextMenuStrip();
-            contextMenu.Items.Add("显示", null, (s, e) => ShowWindow());
-            contextMenu.Items.Add("隐藏", null, (s, e) => HideWindow());
-            contextMenu.Items.Add("-");
-            contextMenu.Items.Add("设置…", null, (s, e) => SettingsButton_Click(null, null));
-            var autoHideItem = contextMenu.Items.Add("失去焦点自动隐藏", null, (s, e) => ToggleAutoHide());
-            _autoHideMenuItem = (ToolStripMenuItem)autoHideItem;
-            _autoHideMenuItem.Checked = _currentSettings.Window.AutoHideOnFocusLost;
-            var alwaysOnTopItem = contextMenu.Items.Add("窗口置顶", null, (s, e) => ToggleAlwaysOnTop());
-            ((ToolStripMenuItem)alwaysOnTopItem).Checked = this.Topmost;
-            var runAtStartupItem = contextMenu.Items.Add("开机自启动", null, (s, e) => ToggleRunAtStartup());
-            ((ToolStripMenuItem)runAtStartupItem).Checked = StartupManager.IsStartupEnabled();
-            contextMenu.Items.Add("-");
-            contextMenu.Items.Add("退出", null, (s, e) => ExitApplication());
+            // v2.0 托盘菜单：设计系统观感（白底细边、浅灰悬停、主蓝对勾）
+            var contextMenu = TrayMenuBuilder.CreateMenu();
+            TrayMenuBuilder.AddHeader(contextMenu, "桌面侧边栏");
+            TrayMenuBuilder.AddSeparator(contextMenu);
+
+            // 显示/收起：按当前状态切换文案（替代旧的固定「显示」「隐藏」两项）
+            TrayMenuBuilder.AddItem(contextMenu, "收起", (s, e) => ToggleWindow());
+            TrayMenuBuilder.AddItem(contextMenu, "设置…", (s, e) => SettingsButton_Click(null, null));
+
+            var autoHideItem = TrayMenuBuilder.AddCheckItem(contextMenu, "失去焦点自动隐藏", _currentSettings.Window.AutoHideOnFocusLost, (s, e) => ToggleAutoHide());
+            _autoHideMenuItem = autoHideItem;
+            var alwaysOnTopItem = TrayMenuBuilder.AddCheckItem(contextMenu, "窗口置顶", this.Topmost, (s, e) => ToggleAlwaysOnTop());
+            var runAtStartupItem = TrayMenuBuilder.AddCheckItem(contextMenu, "开机自启动", StartupManager.IsStartupEnabled(), (s, e) => ToggleRunAtStartup());
+
+            TrayMenuBuilder.AddSeparator(contextMenu);
+            TrayMenuBuilder.AddItem(contextMenu, "退出", (s, e) => ExitApplication());
 
             _trayIcon.ContextMenuStrip = contextMenu;
+            // 菜单每次打开前刷新「显示/收起」文案与勾选态，避免状态过期
+            contextMenu.Opening += (s, e) => UpdateTrayMenuChecks();
             _trayIcon.DoubleClick += (s, e) => ToggleWindow();
+            UpdateTrayMenuChecks();
         }
 
         /// <summary>
@@ -141,29 +149,35 @@ namespace gtt_sidebar.Core.Application
             UpdateTrayMenuChecks();
         }
 
-
-
         private void UpdateTrayMenuChecks()
         {
             if (_trayIcon?.ContextMenuStrip?.Items == null)
                 return;
 
+            var isShown = this.IsVisible && !(_autoHide?.IsHidden ?? false);
+
             for (int i = 0; i < _trayIcon.ContextMenuStrip.Items.Count; i++)
             {
                 var item = _trayIcon.ContextMenuStrip.Items[i] as ToolStripMenuItem;
-                if (item == null) continue;
+                if (item == null)
+                    continue;
 
-                if (item.Text == "窗口置顶")
+                switch (item.Text)
                 {
-                    item.Checked = this.Topmost;
-                }
-                else if (item.Text == "开机自启动")
-                {
-                    item.Checked = StartupManager.IsStartupEnabled();
-                }
-                else if (item.Text == "失去焦点自动隐藏")
-                {
-                    item.Checked = _currentSettings.Window.AutoHideOnFocusLost;
+                    case "收起":
+                    case "显示":
+                        // 同一项按状态换文案：显示中→「收起」，收起中→「显示」
+                        item.Text = isShown ? "收起" : "显示";
+                        break;
+                    case "窗口置顶":
+                        item.Checked = this.Topmost;
+                        break;
+                    case "开机自启动":
+                        item.Checked = StartupManager.IsStartupEnabled();
+                        break;
+                    case "失去焦点自动隐藏":
+                        item.Checked = _currentSettings.Window.AutoHideOnFocusLost;
+                        break;
                 }
             }
         }
@@ -203,6 +217,16 @@ namespace gtt_sidebar.Core.Application
 
         private void ExitApplication()
         {
+            // 悬浮球右键/托盘菜单都会走到这里；误触直接退出体验差，加一次确认
+            var result = System.Windows.MessageBox.Show(
+                "确定要退出桌面侧边栏吗？",
+                "退出",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question,
+                MessageBoxResult.No);
+            if (result != MessageBoxResult.Yes)
+                return;
+
             _isClosing = true;
             System.Windows.Application.Current.Shutdown();
         }
@@ -225,7 +249,7 @@ namespace gtt_sidebar.Core.Application
             var widgets = _widgetManager.LoadWidgets(_currentSettings?.Widgets);
             System.Diagnostics.Debug.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] Widget discovery complete");
 
-            // Add UI elements immediately 
+            // Add UI elements immediately
             foreach (var widget in widgets)
             {
                 WidgetContainer.Children.Add(widget.GetControl());
@@ -275,14 +299,14 @@ namespace gtt_sidebar.Core.Application
                 _settingsWindow.Left = this.Left + this.Width + 10;
             }
 
-            // 设置窗口打开期间抑制自动隐藏（含图标选择器）
-            _autoHide?.SuppressAutoHide();
-            _settingsWindow.Closed += (closedSender, closedArgs) => _autoHide?.ResumeAutoHide();
+            // 设置窗口打开期间抑制自动隐藏（含图标选择器）。
+            // 具名持有 + 幂等，重复打开设置窗口不会累积抑制。
+            const string settingsHolder = "settings";
+            _autoHide?.SuppressAutoHide(settingsHolder);
+            _settingsWindow.Closed += (closedSender, closedArgs) => _autoHide?.ReleaseAutoHide(settingsHolder);
 
             _settingsWindow.Show();
         }
-
-
 
         private void OnShortcutsChanged()
         {
@@ -389,7 +413,6 @@ namespace gtt_sidebar.Core.Application
             {
                 _settingsWindow.SettingsApplied -= OnSettingsApplied;
                 _settingsWindow.ShortcutsChanged -= OnShortcutsChanged;
-                
 
                 if (_settingsWindow.IsVisible)
                 {

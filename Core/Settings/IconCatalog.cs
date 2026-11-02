@@ -19,7 +19,7 @@ namespace gtt_sidebar.Core.Settings
             "calculator",       // Calculator
             "palette",          // MSPaint
             "terminal-window",  // Command Prompt
-            
+
             // Development & Code
             "database",         // DBeaver, SQL tools
             "github-logo",      // GitHub Desktop
@@ -31,7 +31,7 @@ namespace gtt_sidebar.Core.Settings
             "package",          // Package managers
             "stack",            // Technology stack
             "open-ai-logo",     // AI development tools
-            
+
             // Communication & Social
             "envelope",         // Email applications
             "chat-text",        // Chat applications
@@ -39,43 +39,43 @@ namespace gtt_sidebar.Core.Settings
             "slack-logo",       // Slack
             "microsoft-teams-logo", // Microsoft Teams
             "messenger-logo",   // Facebook Messenger
-            
+
             // Microsoft Office Suite
             "microsoft-excel-logo",   // Excel
             "microsoft-outlook-logo", // Outlook
             "microsoft-word-logo",    // Word
-            
+
             // System & Tools
             "app-window",       // Applications
             "archive",          // Archive tools (7-Zip, WinRAR)
             "desktop",          // Desktop/system tools
             "wrench",           // System utilities
             "pulse",            // System monitoring
-            
+
             // Creative & Design
             "bookmarks",        // Bookmark managers
             "checkerboard",     // Design patterns
             "image",            // Image editors (GIMP, Photoshop)
             "puzzle-piece",     // Puzzle games, problem solving
-            
+
             // Network & Web
             "link-simple",      // URL shortcuts
             "globe",            // Web browsers
             "cell-signal-full", // Network tools
             "cloud",            // Cloud storage
             "export",           // Download managers
-            
+
             // Finance & Analytics
             "currency-btc",     // Bitcoin tools
             "currency-dollar",  // Financial apps
             "money",            // Banking, finance
             "chart-line",       // Analytics tools
-            
+
             // Gaming & Entertainment
             "joystick",         // Gaming applications
             "steam-logo",       // Steam gaming platform
             "traffic-cone",     // VLC media player
-            
+
             // Miscellaneous
             "planet",           // Astronomy, mapping
             "potted-plant",     // Lifestyle apps

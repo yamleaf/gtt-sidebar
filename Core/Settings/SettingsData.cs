@@ -241,7 +241,7 @@ namespace gtt_sidebar.Core.Settings
             if (CpuThreshold < 50) CpuThreshold = 50;
             if (CpuThreshold > 95) CpuThreshold = 95;
 
-            // RAM threshold: 50-95%  
+            // RAM threshold: 50-95%
             if (RamThreshold < 50) RamThreshold = 50;
             if (RamThreshold > 95) RamThreshold = 95;
 

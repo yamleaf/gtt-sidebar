@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -20,60 +19,33 @@ namespace gtt_sidebar.Widgets.Notes
 
         public event Action<NotesData> NotesChanged;
 
+        /// <summary>
+        /// 弹窗被隐藏（失焦自隐藏 / ESC）时触发。
+        ///
+        /// 之所以需要这个事件：本弹窗在失焦时是 Hide() 而不是 Close()（为了下次秒开），
+        /// 所以 Closed 只在进程退出时才会来。外部（NotesWidget）如果只监听 Closed，
+        /// 就会漏掉"弹窗已不可见"这个事实，导致抑制自动隐藏的持有永远不释放。
+        /// </summary>
+        public event Action Hidden;
+
+        /// <summary>
+        /// 打开后忽略失焦的时间窗（毫秒）。
+        ///
+        /// 侧边栏是 Topmost + 常驻激活的窗口，点击备注卡片弹窗的瞬间，
+        /// 鼠标点击/焦点回填会把刚 Show 出来的弹窗挤成 Deactivated，
+        /// 于是 Window_Deactivated 立刻 Hide()，表现为"点了没反应"。
+        /// 这里给一个短暂宽限，等焦点真正稳定下来再让失焦逻辑接管。
+        /// </summary>
+        private const int DEACTIVATE_GUARD_MS = 350;
+
+        private DateTime _ignoreDeactivateUntil = DateTime.MinValue;
+
         public NotesPopup(NotesData notesData)
         {
             InitializeComponent();
             UpdateNotesData(notesData);
             InitializeAutoSave();
             RestoreWindowPosition();
-
-            // Debug: Validate data integrity on startup
-            ValidateTabDataIntegrity();
-        }
-
-        /// <summary>
-        /// Debug method to validate tab data integrity
-        /// </summary>
-        private void ValidateTabDataIntegrity()
-        {
-            if (_notesData?.Tabs == null)
-            {
-                System.Diagnostics.Debug.WriteLine("ValidateTabDataIntegrity: No tabs data");
-                return;
-            }
-
-            var defaultTabs = _notesData.Tabs.Where(t => t.IsDefault).ToList();
-            var tabsWithoutIds = _notesData.Tabs.Where(t => string.IsNullOrEmpty(t.Id)).ToList();
-            var duplicateIds = _notesData.Tabs.GroupBy(t => t.Id).Where(g => g.Count() > 1).ToList();
-
-            System.Diagnostics.Debug.WriteLine($"ValidateTabDataIntegrity: {_notesData.Tabs.Count} total tabs, {defaultTabs.Count} default tabs, {tabsWithoutIds.Count} without IDs, {duplicateIds.Count()} duplicate ID groups");
-
-            // Show content summary for each tab
-            for (int i = 0; i < _notesData.Tabs.Count; i++)
-            {
-                var tab = _notesData.Tabs[i];
-                var contentPreview = (tab.Content ?? "").Length > 20 ? (tab.Content ?? "").Substring(0, 20) + "..." : (tab.Content ?? "");
-                System.Diagnostics.Debug.WriteLine($"  Tab[{i}]: ID={tab.Id}, Default={tab.IsDefault}, Content='{contentPreview}'");
-            }
-
-            if (defaultTabs.Count != 1)
-            {
-                System.Diagnostics.Debug.WriteLine($"ValidateTabDataIntegrity: WARNING - Should have exactly 1 default tab, found {defaultTabs.Count}");
-            }
-
-            if (tabsWithoutIds.Count > 0)
-            {
-                System.Diagnostics.Debug.WriteLine($"ValidateTabDataIntegrity: WARNING - {tabsWithoutIds.Count} tabs without IDs");
-            }
-
-            if (duplicateIds.Count() > 0)
-            {
-                System.Diagnostics.Debug.WriteLine($"ValidateTabDataIntegrity: WARNING - Found duplicate IDs");
-                foreach (var group in duplicateIds)
-                {
-                    System.Diagnostics.Debug.WriteLine($"  Duplicate ID: {group.Key} ({group.Count()} tabs)");
-                }
-            }
         }
 
         /// <summary>
@@ -189,7 +161,7 @@ namespace gtt_sidebar.Widgets.Notes
                     Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128)),
                     Margin = new Thickness(0, 0, 2, 0),
                     VerticalAlignment = VerticalAlignment.Center,
-                    Tag = new { TabId = tab.Id, TabIndex = index } // Store both ID and index for debugging
+                    Tag = tab.Id
                 };
 
                 closeButton.Click += CloseTabButton_Click;
@@ -360,30 +332,7 @@ namespace gtt_sidebar.Widgets.Notes
 
         private void CloseTabButton_Click(object sender, RoutedEventArgs e)
         {
-            var button = (Button)sender;
-            var tagData = button.Tag;
-
-            string tabId = null;
-            int tabIndex = -1;
-
-            // Handle both old and new tag formats
-            if (tagData is string)
-            {
-                tabId = (string)tagData;
-            }
-            else if (tagData != null)
-            {
-                // Anonymous type with TabId and TabIndex
-                var tabInfo = tagData.GetType();
-                var tabIdProperty = tabInfo.GetProperty("TabId");
-                var tabIndexProperty = tabInfo.GetProperty("TabIndex");
-
-                if (tabIdProperty != null && tabIndexProperty != null)
-                {
-                    tabId = tabIdProperty.GetValue(tagData) as string;
-                    tabIndex = (int)(tabIndexProperty.GetValue(tagData) ?? -1);
-                }
-            }
+            var tabId = ((Button)sender).Tag as string;
 
             if (string.IsNullOrEmpty(tabId))
             {
@@ -501,9 +450,7 @@ namespace gtt_sidebar.Widgets.Notes
             if (e.Key == Key.Escape)
             {
                 e.Handled = true;
-                System.Diagnostics.Debug.WriteLine($"Window_KeyDown (ESC): Saving content for tab {_currentlyEditingTabId}");
-                SaveIfChanged();
-                this.Hide();
+                HidePopup("ESC");
                 return;
             }
 
@@ -535,16 +482,83 @@ namespace gtt_sidebar.Widgets.Notes
             }
         }
 
-        private void Window_Deactivated(object sender, EventArgs e)
+        /// <summary>
+        /// 显示并激活弹窗（外部统一入口，替代直接调用 Show()+Activate()）。
+        ///
+        /// 关键点：
+        /// 1) 先设置失焦宽限，再 Show，避免"刚显示就 Deactivated → 自己把自己藏起来"；
+        /// 2) Activate 失败（例如主窗口抢焦点）不作为错误处理，下一轮点击仍能正常打开。
+        /// </summary>
+        public void ShowAndActivate()
         {
-            // Save current tab content before closing
-            System.Diagnostics.Debug.WriteLine($"Window_Deactivated: Saving content for tab {_currentlyEditingTabId}");
-            SaveIfChanged();
+            _ignoreDeactivateUntil = DateTime.Now.AddMilliseconds(DEACTIVATE_GUARD_MS);
 
-            // ADD THIS: Ensure the widget knows which tab was last active
+            if (!this.IsVisible)
+            {
+                this.Show();
+            }
+
+            // 置顶并激活，确保输入框能直接拿到键盘焦点
+            this.Topmost = true;
+            try
+            {
+                this.Activate();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"NotesPopup.ShowAndActivate: Activate 失败 - {ex.Message}");
+            }
+
+            // 让光标直接落在正文区，符合"点开就能写"的预期
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    ContentTextBox.Focus();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"NotesPopup.ShowAndActivate: Focus 失败 - {ex.Message}");
+                }
+            }), DispatcherPriority.Input);
+        }
+
+        /// <summary>
+        /// 统一隐藏入口：保存 → 通知外部（释放自动隐藏抑制）→ 隐藏
+        /// </summary>
+        private void HidePopup(string reason)
+        {
+            System.Diagnostics.Debug.WriteLine($"NotesPopup.HidePopup({reason}): Saving content for tab {_currentlyEditingTabId}");
+
+            SaveIfChanged();
             NotesChanged?.Invoke(_notesData);
 
             this.Hide();
+
+            // 通知外部：弹窗已不可见，可以恢复自动隐藏
+            Hidden?.Invoke();
+        }
+
+        private void Window_Deactivated(object sender, EventArgs e)
+        {
+            // 刚打开的瞬间不响应失焦：此时主窗口/悬浮球抢焦点属于正常现象，
+            // 若在此刻 Hide()，用户会看到弹窗一闪而过（甚至完全看不到）。
+            if (DateTime.Now < _ignoreDeactivateUntil)
+            {
+                System.Diagnostics.Debug.WriteLine("NotesPopup: 失焦发生在打开宽限期内，忽略");
+                return;
+            }
+
+            // 焦点回到侧边栏主窗口本身时不算"用户离开备注"：
+            // 用户可能正在点侧边栏上的其它组件，弹窗保持打开更符合预期。
+            var mainWindow = System.Windows.Application.Current?.MainWindow;
+            if (mainWindow != null && mainWindow.IsActive)
+            {
+                System.Diagnostics.Debug.WriteLine("NotesPopup: 焦点回到侧边栏，保持打开");
+                return;
+            }
+
+            HidePopup("Deactivated");
         }
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -565,18 +579,44 @@ namespace gtt_sidebar.Widgets.Notes
         public void PositionRelativeToSidebar(Window sidebar)
         {
             // Only position relative to sidebar if no saved position exists
-            if (!_notesData.PopupPosition.IsValid)
-            {
-                // Position 5px to the left of the sidebar
-                this.Left = sidebar.Left - this.Width - 5;
-                this.Top = sidebar.Top + 50; // Offset from top to align with notes widget
+            if (_notesData.PopupPosition.IsValid) return;
+            if (sidebar == null) return;
 
-                // Ensure popup stays on screen
-                if (this.Left < 0)
-                {
-                    this.Left = sidebar.Left + sidebar.Width + 5; // Show on right if no room on left
-                }
+            // 侧边栏可能是 Hide() 状态（悬浮球模式）或正在播放滑出动画，
+            // 此时 sidebar.Left 可能是屏幕外的坐标，不能直接拿来算弹窗位置。
+            var sidebarLeft = sidebar.Left;
+            var sidebarTop = sidebar.Top;
+            var sidebarWidth = sidebar.ActualWidth > 0 ? sidebar.ActualWidth : sidebar.Width;
+
+            var screenWidth = SystemParameters.PrimaryScreenWidth;
+            var screenHeight = SystemParameters.PrimaryScreenHeight;
+
+            // 侧边栏不在可见区域内（Left 为负或超过屏幕）→ 使用一个安全的默认落点
+            var sidebarVisible = sidebarLeft >= 0 && sidebarLeft < screenWidth;
+            if (!sidebarVisible)
+            {
+                // 靠右停靠的侧边栏收起后 Left≈屏宽，弹窗自动放到屏幕右侧内侧
+                sidebarLeft = screenWidth - sidebarWidth;
             }
+
+            // Position 5px to the left of the sidebar
+            var targetLeft = sidebarLeft - this.Width - 5;
+            var targetTop = sidebarTop + 50; // Offset from top to align with notes widget
+
+            // Show on right if no room on left
+            if (targetLeft < 0)
+            {
+                targetLeft = sidebarLeft + sidebarWidth + 5;
+            }
+
+            // 最后兜底：夹回屏幕内，避免弹窗跑到屏幕外看不见
+            targetLeft = Math.Max(0, Math.Min(targetLeft, screenWidth - this.Width));
+            if (double.IsNaN(targetTop) || targetTop < 0) targetTop = 0;
+            if (targetTop + this.Height > screenHeight) targetTop = Math.Max(0, screenHeight - this.Height);
+
+            this.WindowStartupLocation = WindowStartupLocation.Manual;
+            this.Left = targetLeft;
+            this.Top = targetTop;
         }
     }
 }

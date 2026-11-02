@@ -380,7 +380,7 @@ namespace gtt_sidebar.Widgets.Shortcuts
             }
         }
 
-        
+
 
         /// <summary>
         /// Handle shortcut button click - launch the application/URL
@@ -695,7 +695,7 @@ namespace gtt_sidebar.Widgets.Shortcuts
             }
         }
 
-        
+
 
         /// <summary>
         /// Handle add button click - open Settings to Shortcuts section
@@ -741,11 +741,11 @@ namespace gtt_sidebar.Widgets.Shortcuts
         {
             try
             {
-                
+
                 _shortcutsData = ShortcutsStorage.LoadShortcuts();
-                
+
                 CreateShortcutsGrid();
-                
+
             }
             catch (Exception ex)
             {

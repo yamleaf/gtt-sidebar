@@ -332,7 +332,7 @@ namespace gtt_sidebar.Core.Settings
         /// <summary>
         /// Cleans up orphaned custom icon files (icons with no corresponding shortcuts)
         /// </summary>
-        /// 
+        ///
         private static async Task<string> ReadAllTextAsync(string path)
         {
             using (var fileStream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true))

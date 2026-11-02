@@ -152,7 +152,7 @@
 
                             <!-- 停靠位置：药丸式单选 -->
                             <TextBlock Text="停靠位置" Style="{StaticResource FieldLabel}" Margin="0,0,0,7"/>
-                            <Grid Margin="0,0,0,16">
+                            <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="8"/>
@@ -169,112 +169,6 @@
                                              GroupName="SidebarPosition"
                                              Style="{StaticResource SegmentRadio}"/>
                             </Grid>
-
-                            <!-- 宽度 -->
-                            <Grid Margin="0,0,0,6">
-                                <TextBlock Text="宽度" Style="{StaticResource FieldLabel}"/>
-                                <TextBlock x:Name="WidthValueText" Text="144 px" Style="{StaticResource FieldValue}"/>
-                            </Grid>
-                            <Slider x:Name="WidthSlider"
-                                    Style="{StaticResource ModernSlider}"
-                                    Minimum="100" Maximum="200"
-                                    TickFrequency="2" IsSnapToTickEnabled="True"
-                                    Margin="0,0,0,16"
-                                    ValueChanged="WidthSlider_ValueChanged"/>
-
-                            <!-- 上边距 -->
-                            <Grid Margin="0,0,0,6">
-                                <TextBlock Text="上边距" Style="{StaticResource FieldLabel}"/>
-                                <TextBlock x:Name="MarginTopValueText" Text="5 px" Style="{StaticResource FieldValue}"/>
-                            </Grid>
-                            <Slider x:Name="MarginTopSlider"
-                                    Style="{StaticResource ModernSlider}"
-                                    Minimum="0" Maximum="50"
-                                    TickFrequency="1" IsSnapToTickEnabled="True"
-                                    Margin="0,0,0,16"
-                                    ValueChanged="MarginTopSlider_ValueChanged"/>
-
-                            <!-- 下边距 -->
-                            <Grid Margin="0,0,0,6">
-                                <TextBlock Text="下边距" Style="{StaticResource FieldLabel}"/>
-                                <TextBlock x:Name="MarginBottomValueText" Text="5 px" Style="{StaticResource FieldValue}"/>
-                            </Grid>
-                            <Slider x:Name="MarginBottomSlider"
-                                    Style="{StaticResource ModernSlider}"
-                                    Minimum="0" Maximum="50"
-                                    TickFrequency="1" IsSnapToTickEnabled="True"
-                                    Margin="0,0,0,16"
-                                    ValueChanged="MarginBottomSlider_ValueChanged"/>
-
-                            <!-- 侧边距 -->
-                            <Grid Margin="0,0,0,6">
-                                <TextBlock Text="侧边距" Style="{StaticResource FieldLabel}"/>
-                                <TextBlock x:Name="MarginSideValueText" Text="5 px" Style="{StaticResource FieldValue}"/>
-                            </Grid>
-                            <Slider x:Name="MarginSideSlider"
-                                    Style="{StaticResource ModernSlider}"
-                                    Minimum="0" Maximum="50"
-                                    TickFrequency="1" IsSnapToTickEnabled="True"
-                                    Margin="0,0,0,18"
-                                    ValueChanged="MarginSideSlider_ValueChanged"/>
-
-                            <!-- 分隔线 -->
-                            <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,0,0,16"/>
-
-                            <!-- 自动隐藏 -->
-                            <CheckBox x:Name="AutoHideCheckBox"
-                                      Style="{StaticResource ModernCheckBox}"
-                                      Content="失去焦点后自动隐藏"
-                                      Margin="0,0,0,14"
-                                      Checked="AutoHideCheckBox_Changed"
-                                      Unchecked="AutoHideCheckBox_Changed"/>
-
-                            <Grid Margin="0,0,0,6">
-                                <TextBlock Text="隐藏延迟" Style="{StaticResource FieldLabel}"/>
-                                <TextBlock x:Name="AutoHideDelayValueText" Text="600 ms" Style="{StaticResource FieldValue}"/>
-                            </Grid>
-                            <Slider x:Name="AutoHideDelaySlider"
-                                    Style="{StaticResource ModernSlider}"
-                                    Minimum="0" Maximum="2000"
-                                    TickFrequency="100" IsSnapToTickEnabled="True"
-                                    Margin="0,0,0,16"
-                                    ValueChanged="AutoHideDelaySlider_ValueChanged"/>
-
-                            <Grid Margin="0,0,0,6">
-                                <TextBlock Text="触发区顶部留白" Style="{StaticResource FieldLabel}"/>
-                                <TextBlock x:Name="AutoHideEdgeTopValueText" Text="25%" Style="{StaticResource FieldValue}"/>
-                            </Grid>
-                            <Slider x:Name="AutoHideEdgeTopSlider"
-                                    Style="{StaticResource ModernSlider}"
-                                    Minimum="0" Maximum="50"
-                                    TickFrequency="5" IsSnapToTickEnabled="True"
-                                    Margin="0,0,0,16"
-                                    ValueChanged="AutoHideEdgeTopSlider_ValueChanged"/>
-
-                            <Grid Margin="0,0,0,6">
-                                <TextBlock Text="触发区底部留白" Style="{StaticResource FieldLabel}"/>
-                                <TextBlock x:Name="AutoHideEdgeBottomValueText" Text="15%" Style="{StaticResource FieldValue}"/>
-                            </Grid>
-                            <Slider x:Name="AutoHideEdgeBottomSlider"
-                                    Style="{StaticResource ModernSlider}"
-                                    Minimum="0" Maximum="50"
-                                    TickFrequency="5" IsSnapToTickEnabled="True"
-                                    Margin="0,0,0,6"
-                                    ValueChanged="AutoHideEdgeBottomSlider_ValueChanged"/>
-
-                            <TextBlock Text="顶部留白可避免遮挡窗口右上角的关闭按钮"
-                                       Style="{StaticResource HintText}"
-                                       Margin="0,0,0,16"/>
-
-                            <!-- 收起方式 -->
-                            <CheckBox x:Name="FloatingBallCheckBox"
-                                      Style="{StaticResource ModernCheckBox}"
-                                      Content="收起为悬浮球"
-                                      Margin="0,0,0,7"
-                                      Checked="FloatingBallCheckBox_Changed"
-                                      Unchecked="FloatingBallCheckBox_Changed"/>
-                            <TextBlock Text="收起后在屏幕边缘显示一个小圆球，悬停或点击即可展开；可上下拖动调整位置"
-                                       Style="{StaticResource HintText}"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -441,16 +335,6 @@
                 BorderBrush="{StaticResource BorderSubtle}"
                 BorderThickness="0,1,0,0">
             <Grid Margin="16,0">
-                <TextBlock x:Name="ValidationText"
-                           Text=""
-                           FontSize="9.5"
-                           Foreground="{StaticResource StateDanger}"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Left"
-                           TextTrimming="CharacterEllipsis"
-                           MaxWidth="180"
-                           Visibility="Collapsed"/>
-
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center">
